@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//c/Users/Jack/AppData/Local/Temp/claude/C--Users-Jack-Desktop-it/c6d12a30-bc19-448b-a666-75cec851fcb5/scratchpad/**)",
+      "Bash(curl -s -w '\\\\nSTATUS:%{http_code}\\\\n' -X POST http://localhost:8080/api/products -H 'Authorization: Bearer __CMDSUB_OUTPUT__' -H 'Content-Type: application/json; charset=utf-8' --data-binary @/c/Users/Jack/AppData/Local/Temp/claude/C--Users-Jack-Desktop-it/c6d12a30-bc19-448b-a666-75cec851fcb5/scratchpad/product1.json)",
+      "Bash(curl -s -w '\\\\nSTATUS:%{http_code}\\\\n' -X POST http://localhost:8080/api/products -H 'Authorization: Bearer __CMDSUB_OUTPUT__' -H 'Content-Type: application/json; charset=utf-8' --data-binary @/c/Users/Jack/AppData/Local/Temp/claude/C--Users-Jack-Desktop-it/c6d12a30-bc19-448b-a666-75cec851fcb5/scratchpad/product2.json)",
+      "Bash(curl -s -w \"\\\\nSTATUS:%{http_code}\\\\n\" \"http://localhost:8080/api/products?serviceId=2\")"
+    ]
+  }
+}

@@ -1,0 +1,50 @@
+package com.bkkcarglass.backend.controller;
+
+import com.bkkcarglass.backend.dto.BookingRequest;
+import com.bkkcarglass.backend.dto.BookingResponse;
+import com.bkkcarglass.backend.dto.BookingStatusUpdateRequest;
+import com.bkkcarglass.backend.service.BookingService;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+
+@RestController
+@RequestMapping("/api/bookings")
+@RequiredArgsConstructor
+public class BookingController {
+
+    private final BookingService bookingService;
+
+    @PostMapping
+    public ResponseEntity<BookingResponse> create(@Valid @RequestBody BookingRequest request) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(bookingService.create(request));
+    }
+
+    @GetMapping("/me")
+    public ResponseEntity<List<BookingResponse>> findMine() {
+        return ResponseEntity.ok(bookingService.findMine());
+    }
+
+    @GetMapping("/{id}")
+    public ResponseEntity<BookingResponse> findById(@PathVariable Long id) {
+        return ResponseEntity.ok(bookingService.findById(id));
+    }
+
+    @GetMapping
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<List<BookingResponse>> findAll() {
+        return ResponseEntity.ok(bookingService.findAll());
+    }
+
+    @PutMapping("/{id}/status")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<BookingResponse> updateStatus(
+            @PathVariable Long id, @Valid @RequestBody BookingStatusUpdateRequest request) {
+        return ResponseEntity.ok(bookingService.updateStatus(id, request));
+    }
+}

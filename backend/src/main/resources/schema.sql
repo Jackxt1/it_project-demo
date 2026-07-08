@@ -1,0 +1,100 @@
+-- BKK Carglass and Service - PostgreSQL schema
+
+CREATE TABLE IF NOT EXISTS users (
+    id            BIGSERIAL PRIMARY KEY,
+    full_name     VARCHAR(150) NOT NULL,
+    email         VARCHAR(150) NOT NULL UNIQUE,
+    phone         VARCHAR(30),
+    password_hash VARCHAR(255) NOT NULL,
+    role          VARCHAR(20)  NOT NULL DEFAULT 'CUSTOMER' CHECK (role IN ('CUSTOMER', 'ADMIN')),
+    created_at    TIMESTAMP    NOT NULL DEFAULT now(),
+    updated_at    TIMESTAMP    NOT NULL DEFAULT now()
+)@@
+
+CREATE TABLE IF NOT EXISTS services (
+    id          BIGSERIAL PRIMARY KEY,
+    name        VARCHAR(150) NOT NULL,
+    description TEXT,
+    base_price  NUMERIC(10, 2),
+    created_at  TIMESTAMP NOT NULL DEFAULT now(),
+    updated_at  TIMESTAMP NOT NULL DEFAULT now()
+)@@
+
+CREATE TABLE IF NOT EXISTS products (
+    id          BIGSERIAL PRIMARY KEY,
+    service_id  BIGINT REFERENCES services (id) ON DELETE SET NULL,
+    name        VARCHAR(150) NOT NULL,
+    brand       VARCHAR(100),
+    price       NUMERIC(10, 2) NOT NULL,
+    description TEXT,
+    image_url   VARCHAR(500),
+    created_at  TIMESTAMP NOT NULL DEFAULT now(),
+    updated_at  TIMESTAMP NOT NULL DEFAULT now()
+)@@
+
+CREATE TABLE IF NOT EXISTS bookings (
+    id           BIGSERIAL PRIMARY KEY,
+    user_id      BIGINT NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+    service_id   BIGINT NOT NULL REFERENCES services (id) ON DELETE RESTRICT,
+    product_id   BIGINT REFERENCES products (id) ON DELETE SET NULL,
+    booking_date DATE NOT NULL,
+    time_slot    VARCHAR(20) NOT NULL,
+    status       VARCHAR(20) NOT NULL DEFAULT 'PENDING'
+                 CHECK (status IN ('PENDING', 'CONFIRMED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED')),
+    budget       NUMERIC(10, 2),
+    image_url    VARCHAR(500),
+    quote_price  NUMERIC(10, 2),
+    notes        TEXT,
+    created_at   TIMESTAMP NOT NULL DEFAULT now(),
+    updated_at   TIMESTAMP NOT NULL DEFAULT now()
+)@@
+
+CREATE TABLE IF NOT EXISTS booking_status_history (
+    id         BIGSERIAL PRIMARY KEY,
+    booking_id BIGINT NOT NULL REFERENCES bookings (id) ON DELETE CASCADE,
+    status     VARCHAR(20) NOT NULL,
+    note       TEXT,
+    changed_by BIGINT REFERENCES users (id) ON DELETE SET NULL,
+    changed_at TIMESTAMP NOT NULL DEFAULT now()
+)@@
+
+CREATE TABLE IF NOT EXISTS reviews (
+    id         BIGSERIAL PRIMARY KEY,
+    booking_id BIGINT NOT NULL UNIQUE REFERENCES bookings (id) ON DELETE CASCADE,
+    user_id    BIGINT NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+    rating     SMALLINT NOT NULL CHECK (rating BETWEEN 1 AND 5),
+    comment    TEXT,
+    created_at TIMESTAMP NOT NULL DEFAULT now()
+)@@
+
+CREATE INDEX IF NOT EXISTS idx_products_service_id ON products (service_id)@@
+CREATE INDEX IF NOT EXISTS idx_bookings_user_id ON bookings (user_id)@@
+CREATE INDEX IF NOT EXISTS idx_bookings_service_id ON bookings (service_id)@@
+CREATE INDEX IF NOT EXISTS idx_bookings_status ON bookings (status)@@
+CREATE INDEX IF NOT EXISTS idx_booking_status_history_booking_id ON booking_status_history (booking_id)@@
+CREATE INDEX IF NOT EXISTS idx_reviews_user_id ON reviews (user_id)@@
+
+-- keep updated_at fresh on row updates
+CREATE OR REPLACE FUNCTION set_updated_at()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = now();
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql@@
+
+DROP TRIGGER IF EXISTS trg_users_updated_at ON users@@
+CREATE TRIGGER trg_users_updated_at BEFORE UPDATE ON users
+    FOR EACH ROW EXECUTE FUNCTION set_updated_at()@@
+
+DROP TRIGGER IF EXISTS trg_services_updated_at ON services@@
+CREATE TRIGGER trg_services_updated_at BEFORE UPDATE ON services
+    FOR EACH ROW EXECUTE FUNCTION set_updated_at()@@
+
+DROP TRIGGER IF EXISTS trg_products_updated_at ON products@@
+CREATE TRIGGER trg_products_updated_at BEFORE UPDATE ON products
+    FOR EACH ROW EXECUTE FUNCTION set_updated_at()@@
+
+DROP TRIGGER IF EXISTS trg_bookings_updated_at ON bookings@@
+CREATE TRIGGER trg_bookings_updated_at BEFORE UPDATE ON bookings
+    FOR EACH ROW EXECUTE FUNCTION set_updated_at()@@

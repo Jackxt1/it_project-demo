@@ -1,0 +1,40 @@
+server:
+  port: ${SERVER_PORT:8080}
+
+spring:
+  application:
+    name: bkk-carglass-backend
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/bkk_carglass}
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD:postgres}
+  jpa:
+    hibernate:
+      ddl-auto: none
+    open-in-view: false
+    properties:
+      hibernate:
+        format_sql: true
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 10MB
+  sql:
+    init:
+      mode: always
+      separator: "@@"
+
+app:
+  jwt:
+    # Replace in production. Must be a Base64-encoded key of at least 256 bits for HS256.
+    secret: ${JWT_SECRET:ZmFrZS1zZWNyZXQta2V5LWZvci1ia2stY2FyZ2xhc3MtcHJvamVjdC1jaGFuZ2UtbWUtaW4tcHJvZC0xMjM0NTY3ODkw}
+    expiration-ms: ${JWT_EXPIRATION_MS:86400000}
+  booking:
+    max-per-slot: ${BOOKING_MAX_PER_SLOT:2}
+  cloudinary:
+    cloud-name: ${CLOUDINARY_CLOUD_NAME:}
+    api-key: ${CLOUDINARY_API_KEY:}
+    api-secret: ${CLOUDINARY_API_SECRET:}
+  gemini:
+    api-key: ${GEMINI_API_KEY:}
+    model: ${GEMINI_MODEL:gemini-1.5-flash}
