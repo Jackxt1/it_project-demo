@@ -21,10 +21,17 @@ public class ProductService {
     private final ServiceRepository serviceRepository;
 
     @Transactional(readOnly = true)
-    public List<ProductResponse> findAll(Long serviceId) {
-        List<Product> products = (serviceId != null)
-                ? productRepository.findByServiceId(serviceId)
-                : productRepository.findAll();
+    public List<ProductResponse> findAll(Long serviceId, boolean includeInactive) {
+        List<Product> products;
+        if (serviceId != null) {
+            products = includeInactive
+                    ? productRepository.findByServiceId(serviceId)
+                    : productRepository.findByServiceIdAndActiveTrue(serviceId);
+        } else {
+            products = includeInactive
+                    ? productRepository.findAll()
+                    : productRepository.findByActiveTrue();
+        }
         return products.stream().map(this::toResponse).toList();
     }
 
@@ -46,6 +53,7 @@ public class ProductService {
                 .price(request.getPrice())
                 .description(request.getDescription())
                 .imageUrl(request.getImageUrl())
+                .active(request.getActive() != null ? request.getActive() : true)
                 .build();
         return toResponse(productRepository.save(product));
     }
@@ -63,6 +71,9 @@ public class ProductService {
         product.setPrice(request.getPrice());
         product.setDescription(request.getDescription());
         product.setImageUrl(request.getImageUrl());
+        if (request.getActive() != null) {
+            product.setActive(request.getActive());
+        }
         return toResponse(productRepository.save(product));
     }
 
@@ -99,6 +110,7 @@ public class ProductService {
                 .price(product.getPrice())
                 .description(product.getDescription())
                 .imageUrl(product.getImageUrl())
+                .active(product.isActive())
                 .createdAt(product.getCreatedAt())
                 .updatedAt(product.getUpdatedAt())
                 .build();

@@ -19,8 +19,10 @@ public class ProductController {
     private final ProductService productService;
 
     @GetMapping
-    public ResponseEntity<List<ProductResponse>> findAll(@RequestParam(required = false) Long serviceId) {
-        return ResponseEntity.ok(productService.findAll(serviceId));
+    public ResponseEntity<List<ProductResponse>> findAll(
+            @RequestParam(required = false) Long serviceId,
+            @RequestParam(defaultValue = "false") boolean includeInactive) {
+        return ResponseEntity.ok(productService.findAll(serviceId, includeInactive));
     }
 
     @GetMapping("/{id}")

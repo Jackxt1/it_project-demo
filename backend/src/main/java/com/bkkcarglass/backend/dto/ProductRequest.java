@@ -47,4 +47,6 @@ public class ProductRequest {
 
     @Size(max = 500)
     private String imageUrl;
+
+    private Boolean active;
 }

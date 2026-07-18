@@ -10,4 +10,8 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
     List<Product> findByServiceId(Long serviceId);
 
     List<Product> findByServiceIdAndPriceLessThanEqual(Long serviceId, BigDecimal maxPrice);
+
+    List<Product> findByActiveTrue();
+
+    List<Product> findByServiceIdAndActiveTrue(Long serviceId);
 }

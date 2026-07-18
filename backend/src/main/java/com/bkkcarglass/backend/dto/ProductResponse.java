@@ -23,6 +23,7 @@ public class ProductResponse {
     private BigDecimal price;
     private String description;
     private String imageUrl;
+    private boolean active;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 }
