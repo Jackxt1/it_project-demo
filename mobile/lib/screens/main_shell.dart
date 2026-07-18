@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../models/service_item.dart';
 import '../theme/app_theme.dart';
+import 'booking/booking_flow.dart';
 import 'home/home_screen.dart';
 
 class MainShell extends StatefulWidget {
@@ -23,36 +24,33 @@ class _MainShellState extends State<MainShell> {
   int _currentIndex = 0;
 
   void _handleBookService(ServiceItem? service) {
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(const SnackBar(content: Text('เร็วๆ นี้')));
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => BookingFlowScreen(initialService: service),
+      ),
+    );
   }
 
   List<Widget> _defaultPages() => [
-        HomeScreen(
-          onBookService: _handleBookService,
-          onTrackStatus: () => setState(() => _currentIndex = 1),
-        ),
-        ...MainShell._placeholderTabLabels.map(
-          (label) => Center(child: Text(label)),
-        ),
-      ];
+    HomeScreen(
+      onBookService: _handleBookService,
+      onTrackStatus: () => setState(() => _currentIndex = 1),
+    ),
+    ...MainShell._placeholderTabLabels.map(
+      (label) => Center(child: Text(label)),
+    ),
+  ];
 
   @override
   Widget build(BuildContext context) {
     final pages = widget.pages ?? _defaultPages();
 
     return Scaffold(
-      body: IndexedStack(
-        index: _currentIndex,
-        children: pages,
-      ),
+      body: IndexedStack(index: _currentIndex, children: pages),
       floatingActionButton: FloatingActionButton(
         backgroundColor: AppColors.primary,
         shape: const CircleBorder(),
-        onPressed: () {
-          // TODO(Task 4): navigate to booking flow
-        },
+        onPressed: () => _handleBookService(null),
         child: const Icon(Icons.directions_car, color: Colors.white),
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
@@ -63,22 +61,13 @@ class _MainShellState extends State<MainShell> {
         unselectedItemColor: Colors.black54,
         type: BottomNavigationBarType.fixed,
         items: const [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.home),
-            label: 'หน้าแรก',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.search),
-            label: 'การจอง',
-          ),
+          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'หน้าแรก'),
+          BottomNavigationBarItem(icon: Icon(Icons.search), label: 'การจอง'),
           BottomNavigationBarItem(
             icon: Icon(Icons.notifications),
             label: 'แจ้งเตือน',
           ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.person),
-            label: 'โปรไฟล์',
-          ),
+          BottomNavigationBarItem(icon: Icon(Icons.person), label: 'โปรไฟล์'),
         ],
       ),
     );
