@@ -6,12 +6,16 @@ import com.bkkcarglass.backend.entity.BookingStatus;
 import com.bkkcarglass.backend.entity.Booking;
 import com.bkkcarglass.backend.entity.ServiceEntity;
 import com.bkkcarglass.backend.entity.User;
+import com.bkkcarglass.backend.entity.Vehicle;
+import com.bkkcarglass.backend.entity.VehicleType;
 import com.bkkcarglass.backend.exception.BookingSlotFullException;
+import com.bkkcarglass.backend.exception.ResourceNotFoundException;
 import com.bkkcarglass.backend.repository.BookingRepository;
 import com.bkkcarglass.backend.repository.BookingStatusHistoryRepository;
 import com.bkkcarglass.backend.repository.ProductRepository;
 import com.bkkcarglass.backend.repository.ServiceRepository;
 import com.bkkcarglass.backend.repository.TechnicianRepository;
+import com.bkkcarglass.backend.repository.VehicleRepository;
 import com.bkkcarglass.backend.security.CurrentUserService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -19,6 +23,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
@@ -39,6 +44,7 @@ class BookingServiceTest {
     @Mock ServiceRepository serviceRepository;
     @Mock ProductRepository productRepository;
     @Mock TechnicianRepository technicianRepository;
+    @Mock VehicleRepository vehicleRepository;
     @Mock CurrentUserService currentUserService;
     @Mock PushNotificationService pushNotificationService;
 
@@ -51,7 +57,7 @@ class BookingServiceTest {
     void setUp() {
         bookingService = new BookingService(
                 bookingRepository, historyRepository, serviceRepository,
-                productRepository, technicianRepository,
+                productRepository, technicianRepository, vehicleRepository,
                 currentUserService, pushNotificationService);
 
         customer = User.builder().id(1L).fullName("ลูกค้า ทดสอบ").build();
@@ -97,5 +103,52 @@ class BookingServiceTest {
 
         assertEquals("ล้างรถ", response.getServiceName());
         assertEquals(BookingStatus.PENDING.name(), response.getStatus());
+    }
+
+    @Test
+    void create_generatesOrderCodeAndDefaultsPaidAmount() {
+        when(bookingRepository.countByServiceIdAndBookingDateAndTimeSlotAndStatusNot(
+                anyLong(), any(LocalDate.class), anyString(), eq(BookingStatus.CANCELLED)))
+                .thenReturn(0L);
+        when(bookingRepository.existsByOrderCode(anyString())).thenReturn(false);
+
+        BookingResponse response = bookingService.create(washRequest());
+
+        assertNotNull(response.getOrderCode());
+        assertTrue(response.getOrderCode().startsWith("BKDL-"));
+        assertEquals(new BigDecimal("0"), response.getPaidAmount());
+    }
+
+    @Test
+    void create_rejectsVehicleOfAnotherUser() {
+        when(bookingRepository.countByServiceIdAndBookingDateAndTimeSlotAndStatusNot(
+                anyLong(), any(LocalDate.class), anyString(), eq(BookingStatus.CANCELLED)))
+                .thenReturn(0L);
+        when(vehicleRepository.findByIdAndUserId(42L, 1L)).thenReturn(Optional.empty());
+
+        BookingRequest request = washRequest();
+        request.setVehicleId(42L);
+
+        assertThrows(ResourceNotFoundException.class, () -> bookingService.create(request));
+    }
+
+    @Test
+    void create_attachesOwnedVehicle() {
+        Vehicle vehicle = Vehicle.builder().id(42L).user(customer)
+                .vehicleType(VehicleType.SEDAN).brandModel("Honda Civic")
+                .licensePlate("ตด 8888").build();
+        when(bookingRepository.countByServiceIdAndBookingDateAndTimeSlotAndStatusNot(
+                anyLong(), any(LocalDate.class), anyString(), eq(BookingStatus.CANCELLED)))
+                .thenReturn(0L);
+        when(bookingRepository.existsByOrderCode(anyString())).thenReturn(false);
+        when(vehicleRepository.findByIdAndUserId(42L, 1L)).thenReturn(Optional.of(vehicle));
+
+        BookingRequest request = washRequest();
+        request.setVehicleId(42L);
+
+        BookingResponse response = bookingService.create(request);
+
+        assertEquals("Honda Civic", response.getVehicleBrandModel());
+        assertEquals("ตด 8888", response.getVehicleLicensePlate());
     }
 }

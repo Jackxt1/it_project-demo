@@ -29,6 +29,13 @@ public class BookingResponse {
     private String imageUrl;
     private BigDecimal quotePrice;
     private String notes;
+    private String orderCode;
+    private Long vehicleId;
+    private String vehicleBrandModel;
+    private String vehicleLicensePlate;
+    private String installArea;
+    private String paymentType;
+    private BigDecimal paidAmount;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
     private List<BookingStatusHistoryResponse> statusHistory;

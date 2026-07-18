@@ -40,6 +40,25 @@ public class Booking {
     @JoinColumn(name = "technician_id")
     private Technician technician;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "vehicle_id")
+    private Vehicle vehicle;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "install_area", length = 20)
+    private InstallArea installArea;
+
+    @Column(name = "order_code", length = 30, unique = true)
+    private String orderCode;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "payment_type", length = 20)
+    private PaymentType paymentType;
+
+    @Column(name = "paid_amount", nullable = false, precision = 10, scale = 2)
+    @Builder.Default
+    private BigDecimal paidAmount = BigDecimal.ZERO;
+
     @Column(name = "booking_date", nullable = false)
     private LocalDate bookingDate;
 

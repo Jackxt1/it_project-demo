@@ -12,6 +12,7 @@ import com.bkkcarglass.backend.entity.Product;
 import com.bkkcarglass.backend.entity.ServiceEntity;
 import com.bkkcarglass.backend.entity.Technician;
 import com.bkkcarglass.backend.entity.User;
+import com.bkkcarglass.backend.entity.Vehicle;
 import com.bkkcarglass.backend.exception.BookingAccessDeniedException;
 import com.bkkcarglass.backend.exception.BookingSlotFullException;
 import com.bkkcarglass.backend.exception.ResourceNotFoundException;
@@ -22,11 +23,13 @@ import com.bkkcarglass.backend.repository.BookingStatusHistoryRepository;
 import com.bkkcarglass.backend.repository.ProductRepository;
 import com.bkkcarglass.backend.repository.ServiceRepository;
 import com.bkkcarglass.backend.repository.TechnicianRepository;
+import com.bkkcarglass.backend.repository.VehicleRepository;
 import com.bkkcarglass.backend.security.CurrentUserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 
@@ -39,8 +42,11 @@ public class BookingService {
     private final ServiceRepository serviceRepository;
     private final ProductRepository productRepository;
     private final TechnicianRepository technicianRepository;
+    private final VehicleRepository vehicleRepository;
     private final CurrentUserService currentUserService;
     private final PushNotificationService pushNotificationService;
+
+    private final java.security.SecureRandom random = new java.security.SecureRandom();
 
     @Transactional
     public BookingResponse create(BookingRequest request) {
@@ -62,10 +68,21 @@ public class BookingService {
             throw new BookingSlotFullException();
         }
 
+        Vehicle vehicle = null;
+        if (request.getVehicleId() != null) {
+            vehicle = vehicleRepository.findByIdAndUserId(request.getVehicleId(), currentUser.getId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Vehicle", request.getVehicleId()));
+        }
+
         Booking booking = Booking.builder()
                 .user(currentUser)
                 .service(service)
                 .product(product)
+                .vehicle(vehicle)
+                .installArea(request.getInstallArea())
+                .orderCode(generateOrderCode())
+                .paymentType(request.getPaymentType())
+                .paidAmount(request.getPaidAmount() != null ? request.getPaidAmount() : BigDecimal.ZERO)
                 .bookingDate(request.getBookingDate())
                 .timeSlot(request.getTimeSlot())
                 .status(BookingStatus.PENDING)
@@ -175,6 +192,14 @@ public class BookingService {
                 .orElseThrow(() -> new ResourceNotFoundException("Booking", id));
     }
 
+    private String generateOrderCode() {
+        String code;
+        do {
+            code = "BKDL-%06d-%04d".formatted(random.nextInt(1_000_000), random.nextInt(10_000));
+        } while (bookingRepository.existsByOrderCode(code));
+        return code;
+    }
+
     private BookingResponse toResponse(Booking booking) {
         List<BookingStatusHistoryResponse> history =
                 historyRepository.findByBookingIdOrderByChangedAtAsc(booking.getId()).stream()
@@ -189,6 +214,7 @@ public class BookingService {
 
         Product product = booking.getProduct();
         Technician technician = booking.getTechnician();
+        Vehicle vehicle = booking.getVehicle();
         return BookingResponse.builder()
                 .id(booking.getId())
                 .userId(booking.getUser().getId())
@@ -206,6 +232,13 @@ public class BookingService {
                 .imageUrl(booking.getImageUrl())
                 .quotePrice(booking.getQuotePrice())
                 .notes(booking.getNotes())
+                .orderCode(booking.getOrderCode())
+                .vehicleId(vehicle != null ? vehicle.getId() : null)
+                .vehicleBrandModel(vehicle != null ? vehicle.getBrandModel() : null)
+                .vehicleLicensePlate(vehicle != null ? vehicle.getLicensePlate() : null)
+                .installArea(booking.getInstallArea() != null ? booking.getInstallArea().name() : null)
+                .paymentType(booking.getPaymentType() != null ? booking.getPaymentType().name() : null)
+                .paidAmount(booking.getPaidAmount())
                 .createdAt(booking.getCreatedAt())
                 .updatedAt(booking.getUpdatedAt())
                 .statusHistory(history)

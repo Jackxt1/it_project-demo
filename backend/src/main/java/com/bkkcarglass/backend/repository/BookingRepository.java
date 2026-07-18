@@ -30,4 +30,6 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
 
     @Query("SELECT b.status, COUNT(b) FROM Booking b GROUP BY b.status")
     List<Object[]> countGroupedByStatus();
+
+    boolean existsByOrderCode(String orderCode);
 }

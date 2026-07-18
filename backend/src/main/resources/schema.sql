@@ -88,6 +88,15 @@ CREATE TABLE IF NOT EXISTS bookings (
 
 ALTER TABLE bookings ADD COLUMN IF NOT EXISTS technician_id BIGINT
     REFERENCES technicians (id) ON DELETE SET NULL@@
+ALTER TABLE bookings ADD COLUMN IF NOT EXISTS vehicle_id BIGINT
+    REFERENCES vehicles (id) ON DELETE SET NULL@@
+ALTER TABLE bookings ADD COLUMN IF NOT EXISTS install_area VARCHAR(20)
+    CHECK (install_area IS NULL OR install_area IN ('FULL', 'FRONT_BACK', 'FRONT', 'BACK'))@@
+ALTER TABLE bookings ADD COLUMN IF NOT EXISTS order_code VARCHAR(30) UNIQUE@@
+ALTER TABLE bookings ADD COLUMN IF NOT EXISTS payment_type VARCHAR(20)
+    CHECK (payment_type IS NULL OR payment_type IN ('DEPOSIT', 'FULL'))@@
+ALTER TABLE bookings ADD COLUMN IF NOT EXISTS paid_amount NUMERIC(10, 2) NOT NULL DEFAULT 0@@
+CREATE INDEX IF NOT EXISTS idx_bookings_vehicle_id ON bookings (vehicle_id)@@
 
 CREATE TABLE IF NOT EXISTS booking_status_history (
     id         BIGSERIAL PRIMARY KEY,
