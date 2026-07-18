@@ -1,22 +1,19 @@
 import 'package:flutter/material.dart';
 
+import '../models/service_item.dart';
 import '../theme/app_theme.dart';
+import 'home/home_screen.dart';
 
 class MainShell extends StatefulWidget {
   const MainShell({super.key, this.pages});
 
   final List<Widget>? pages;
 
-  static const List<String> _tabLabels = [
-    'หน้าแรก',
+  static const List<String> _placeholderTabLabels = [
     'การจอง',
     'แจ้งเตือน',
     'โปรไฟล์',
   ];
-
-  static List<Widget> get defaultPages => _tabLabels
-      .map((label) => Center(child: Text(label)))
-      .toList(growable: false);
 
   @override
   State<MainShell> createState() => _MainShellState();
@@ -25,9 +22,25 @@ class MainShell extends StatefulWidget {
 class _MainShellState extends State<MainShell> {
   int _currentIndex = 0;
 
+  void _handleBookService(ServiceItem? service) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(const SnackBar(content: Text('เร็วๆ นี้')));
+  }
+
+  List<Widget> _defaultPages() => [
+        HomeScreen(
+          onBookService: _handleBookService,
+          onTrackStatus: () => setState(() => _currentIndex = 1),
+        ),
+        ...MainShell._placeholderTabLabels.map(
+          (label) => Center(child: Text(label)),
+        ),
+      ];
+
   @override
   Widget build(BuildContext context) {
-    final pages = widget.pages ?? MainShell.defaultPages;
+    final pages = widget.pages ?? _defaultPages();
 
     return Scaffold(
       body: IndexedStack(
