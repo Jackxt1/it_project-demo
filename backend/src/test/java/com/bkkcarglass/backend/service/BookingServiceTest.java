@@ -46,7 +46,7 @@ class BookingServiceTest {
     @Mock TechnicianRepository technicianRepository;
     @Mock VehicleRepository vehicleRepository;
     @Mock CurrentUserService currentUserService;
-    @Mock PushNotificationService pushNotificationService;
+    @Mock NotificationService notificationService;
 
     BookingService bookingService;
 
@@ -58,7 +58,7 @@ class BookingServiceTest {
         bookingService = new BookingService(
                 bookingRepository, historyRepository, serviceRepository,
                 productRepository, technicianRepository, vehicleRepository,
-                currentUserService, pushNotificationService);
+                currentUserService, notificationService);
 
         customer = User.builder().id(1L).fullName("ลูกค้า ทดสอบ").build();
         washService = ServiceEntity.builder().id(10L).name("ล้างรถ").maxPerSlot(5).build();

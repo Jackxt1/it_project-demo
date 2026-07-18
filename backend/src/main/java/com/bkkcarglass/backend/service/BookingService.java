@@ -8,6 +8,7 @@ import com.bkkcarglass.backend.dto.BookingTechnicianAssignRequest;
 import com.bkkcarglass.backend.entity.Booking;
 import com.bkkcarglass.backend.entity.BookingStatus;
 import com.bkkcarglass.backend.entity.BookingStatusHistory;
+import com.bkkcarglass.backend.entity.NotificationType;
 import com.bkkcarglass.backend.entity.Product;
 import com.bkkcarglass.backend.entity.ServiceEntity;
 import com.bkkcarglass.backend.entity.Technician;
@@ -44,7 +45,7 @@ public class BookingService {
     private final TechnicianRepository technicianRepository;
     private final VehicleRepository vehicleRepository;
     private final CurrentUserService currentUserService;
-    private final PushNotificationService pushNotificationService;
+    private final NotificationService notificationService;
 
     private final java.security.SecureRandom random = new java.security.SecureRandom();
 
@@ -156,8 +157,12 @@ public class BookingService {
                 .changedBy(currentUser)
                 .build());
 
-        pushNotificationService.send(
-                booking.getUser().getFcmToken(), "อัปเดตสถานะการจอง", statusMessage(booking.getStatus()));
+        notificationService.notifyUser(
+                booking.getUser(),
+                "อัปเดตสถานะการจอง",
+                statusMessage(booking.getStatus()),
+                NotificationType.BOOKING_STATUS,
+                booking);
 
         return toResponse(booking);
     }

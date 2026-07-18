@@ -128,6 +128,20 @@ CREATE TABLE IF NOT EXISTS chat_messages (
 
 CREATE INDEX IF NOT EXISTS idx_chat_messages_booking_id ON chat_messages (booking_id)@@
 
+CREATE TABLE IF NOT EXISTS notifications (
+    id         BIGSERIAL PRIMARY KEY,
+    user_id    BIGINT NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+    title      VARCHAR(200) NOT NULL,
+    body       TEXT NOT NULL,
+    type       VARCHAR(30) NOT NULL DEFAULT 'OTHER'
+               CHECK (type IN ('BOOKING_STATUS', 'QUOTE', 'JOB_ASSIGNED', 'CHAT', 'OTHER')),
+    booking_id BIGINT REFERENCES bookings (id) ON DELETE SET NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT now(),
+    read_at    TIMESTAMP
+)@@
+
+CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON notifications (user_id)@@
+
 CREATE INDEX IF NOT EXISTS idx_products_service_id ON products (service_id)@@
 CREATE INDEX IF NOT EXISTS idx_bookings_user_id ON bookings (user_id)@@
 CREATE INDEX IF NOT EXISTS idx_bookings_service_id ON bookings (service_id)@@
