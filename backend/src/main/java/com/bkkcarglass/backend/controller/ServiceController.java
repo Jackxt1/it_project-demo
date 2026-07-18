@@ -2,13 +2,17 @@ package com.bkkcarglass.backend.controller;
 
 import com.bkkcarglass.backend.dto.ServiceRequest;
 import com.bkkcarglass.backend.dto.ServiceResponse;
+import com.bkkcarglass.backend.dto.SlotListResponse;
 import com.bkkcarglass.backend.service.ServiceEntityService;
+import com.bkkcarglass.backend.service.BookingSlotService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDate;
 import java.util.List;
 
 @RestController
@@ -17,6 +21,7 @@ import java.util.List;
 public class ServiceController {
 
     private final ServiceEntityService serviceEntityService;
+    private final BookingSlotService bookingSlotService;
 
     @GetMapping
     public ResponseEntity<List<ServiceResponse>> findAll() {
@@ -42,5 +47,12 @@ public class ServiceController {
     public ResponseEntity<Void> delete(@PathVariable Long id) {
         serviceEntityService.delete(id);
         return ResponseEntity.noContent().build();
+    }
+
+    @GetMapping("/{id}/slots")
+    public ResponseEntity<SlotListResponse> slots(
+            @PathVariable Long id,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
+        return ResponseEntity.ok(bookingSlotService.getSlots(id, date));
     }
 }
