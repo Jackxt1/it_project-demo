@@ -47,6 +47,19 @@ ALTER TABLE services ADD COLUMN IF NOT EXISTS max_per_slot INTEGER NOT NULL DEFA
 
 ALTER TABLE products ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT true@@
 
+CREATE TABLE IF NOT EXISTS vehicles (
+    id            BIGSERIAL PRIMARY KEY,
+    user_id       BIGINT NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+    vehicle_type  VARCHAR(20) NOT NULL CHECK (vehicle_type IN ('SEDAN', 'PICKUP', 'SUV', 'OTHER')),
+    brand_model   VARCHAR(150) NOT NULL,
+    year          SMALLINT,
+    license_plate VARCHAR(30) NOT NULL,
+    created_at    TIMESTAMP NOT NULL DEFAULT now(),
+    updated_at    TIMESTAMP NOT NULL DEFAULT now()
+)@@
+
+CREATE INDEX IF NOT EXISTS idx_vehicles_user_id ON vehicles (user_id)@@
+
 CREATE TABLE IF NOT EXISTS technicians (
     id         BIGSERIAL PRIMARY KEY,
     full_name  VARCHAR(150) NOT NULL,
@@ -141,4 +154,8 @@ CREATE TRIGGER trg_bookings_updated_at BEFORE UPDATE ON bookings
 
 DROP TRIGGER IF EXISTS trg_technicians_updated_at ON technicians@@
 CREATE TRIGGER trg_technicians_updated_at BEFORE UPDATE ON technicians
+    FOR EACH ROW EXECUTE FUNCTION set_updated_at()@@
+
+DROP TRIGGER IF EXISTS trg_vehicles_updated_at ON vehicles@@
+CREATE TRIGGER trg_vehicles_updated_at BEFORE UPDATE ON vehicles
     FOR EACH ROW EXECUTE FUNCTION set_updated_at()@@
