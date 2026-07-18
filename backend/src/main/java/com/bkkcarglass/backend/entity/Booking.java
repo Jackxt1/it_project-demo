@@ -36,6 +36,10 @@ public class Booking {
     @JoinColumn(name = "product_id")
     private Product product;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "technician_id")
+    private Technician technician;
+
     @Column(name = "booking_date", nullable = false)
     private LocalDate bookingDate;
 

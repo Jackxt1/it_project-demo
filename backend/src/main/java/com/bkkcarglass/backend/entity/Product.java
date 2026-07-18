@@ -33,6 +33,18 @@ public class Product {
     @Column(length = 100)
     private String brand;
 
+    @Column(length = 50)
+    private String grade;
+
+    @Column(name = "heat_rejection_pct")
+    private Integer heatRejectionPct;
+
+    @Column(name = "uv_rejection_pct")
+    private Integer uvRejectionPct;
+
+    @Column(name = "vlt_pct")
+    private Integer vltPct;
+
     @Column(nullable = false, precision = 10, scale = 2)
     private BigDecimal price;
 

@@ -38,3 +38,11 @@ app:
   gemini:
     api-key: ${GEMINI_API_KEY:}
     model: ${GEMINI_MODEL:gemini-1.5-flash}
+  firebase:
+    # Path to the Firebase service account JSON key file. Leave empty to disable
+    # push notifications (logs a warning at startup instead of failing).
+    service-account-path: ${FIREBASE_SERVICE_ACCOUNT_PATH:}
+  cors:
+    # Comma-separated list of allowed origins (Flutter Web admin, etc). Set
+    # CORS_ALLOWED_ORIGINS to the real deployed domain(s) in production.
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5000,http://localhost:8080,http://localhost:3000}

@@ -4,19 +4,24 @@ import com.bkkcarglass.backend.dto.BookingRequest;
 import com.bkkcarglass.backend.dto.BookingResponse;
 import com.bkkcarglass.backend.dto.BookingStatusHistoryResponse;
 import com.bkkcarglass.backend.dto.BookingStatusUpdateRequest;
+import com.bkkcarglass.backend.dto.BookingTechnicianAssignRequest;
 import com.bkkcarglass.backend.entity.Booking;
 import com.bkkcarglass.backend.entity.BookingStatus;
 import com.bkkcarglass.backend.entity.BookingStatusHistory;
 import com.bkkcarglass.backend.entity.Product;
 import com.bkkcarglass.backend.entity.ServiceEntity;
+import com.bkkcarglass.backend.entity.Technician;
 import com.bkkcarglass.backend.entity.User;
 import com.bkkcarglass.backend.exception.BookingAccessDeniedException;
 import com.bkkcarglass.backend.exception.BookingSlotFullException;
 import com.bkkcarglass.backend.exception.ResourceNotFoundException;
+import com.bkkcarglass.backend.exception.TechnicianDeactivatedException;
+import com.bkkcarglass.backend.exception.TechnicianNotAssignedException;
 import com.bkkcarglass.backend.repository.BookingRepository;
 import com.bkkcarglass.backend.repository.BookingStatusHistoryRepository;
 import com.bkkcarglass.backend.repository.ProductRepository;
 import com.bkkcarglass.backend.repository.ServiceRepository;
+import com.bkkcarglass.backend.repository.TechnicianRepository;
 import com.bkkcarglass.backend.security.CurrentUserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
@@ -34,7 +39,9 @@ public class BookingService {
     private final BookingStatusHistoryRepository historyRepository;
     private final ServiceRepository serviceRepository;
     private final ProductRepository productRepository;
+    private final TechnicianRepository technicianRepository;
     private final CurrentUserService currentUserService;
+    private final PushNotificationService pushNotificationService;
 
     @Value("${app.booking.max-per-slot:2}")
     private int maxBookingsPerSlot;
@@ -90,6 +97,13 @@ public class BookingService {
     }
 
     @Transactional(readOnly = true)
+    public List<BookingResponse> findByUserId(Long userId) {
+        return bookingRepository.findByUserIdOrderByCreatedAtDesc(userId).stream()
+                .map(this::toResponse)
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
     public List<BookingResponse> findAll() {
         return bookingRepository.findAll().stream().map(this::toResponse).toList();
     }
@@ -111,6 +125,10 @@ public class BookingService {
         Booking booking = getEntity(id);
         User currentUser = currentUserService.getCurrentUser();
 
+        if (request.getStatus() == BookingStatus.IN_PROGRESS && booking.getTechnician() == null) {
+            throw new TechnicianNotAssignedException();
+        }
+
         booking.setStatus(request.getStatus());
         if (request.getQuotePrice() != null) {
             booking.setQuotePrice(request.getQuotePrice());
@@ -124,6 +142,34 @@ public class BookingService {
                 .changedBy(currentUser)
                 .build());
 
+        pushNotificationService.send(
+                booking.getUser().getFcmToken(), "อัปเดตสถานะการจอง", statusMessage(booking.getStatus()));
+
+        return toResponse(booking);
+    }
+
+    private String statusMessage(BookingStatus status) {
+        return switch (status) {
+            case PENDING -> "การจองของคุณอยู่ระหว่างรอดำเนินการ";
+            case CONFIRMED -> "การจองของคุณได้รับการยืนยันแล้ว";
+            case IN_PROGRESS -> "ช่างกำลังดำเนินการกับรถของคุณ";
+            case COMPLETED -> "งานของคุณเสร็จเรียบร้อยแล้ว กรุณารับรถได้ที่ร้าน";
+            case CANCELLED -> "การจองของคุณถูกยกเลิก";
+        };
+    }
+
+    @Transactional
+    public BookingResponse assignTechnician(Long id, BookingTechnicianAssignRequest request) {
+        Booking booking = getEntity(id);
+
+        Technician technician = technicianRepository.findById(request.getTechnicianId())
+                .orElseThrow(() -> new ResourceNotFoundException("Technician", request.getTechnicianId()));
+        if (!technician.isActive()) {
+            throw new TechnicianDeactivatedException();
+        }
+
+        booking.setTechnician(technician);
+        booking = bookingRepository.save(booking);
         return toResponse(booking);
     }
 
@@ -145,6 +191,7 @@ public class BookingService {
                         .toList();
 
         Product product = booking.getProduct();
+        Technician technician = booking.getTechnician();
         return BookingResponse.builder()
                 .id(booking.getId())
                 .userId(booking.getUser().getId())
@@ -153,6 +200,8 @@ public class BookingService {
                 .serviceName(booking.getService().getName())
                 .productId(product != null ? product.getId() : null)
                 .productName(product != null ? product.getName() : null)
+                .technicianId(technician != null ? technician.getId() : null)
+                .technicianName(technician != null ? technician.getFullName() : null)
                 .bookingDate(booking.getBookingDate())
                 .timeSlot(booking.getTimeSlot())
                 .status(booking.getStatus().name())

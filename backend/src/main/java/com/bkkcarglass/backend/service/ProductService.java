@@ -39,6 +39,10 @@ public class ProductService {
                 .service(resolveService(request.getServiceId()))
                 .name(request.getName())
                 .brand(request.getBrand())
+                .grade(request.getGrade())
+                .heatRejectionPct(request.getHeatRejectionPct())
+                .uvRejectionPct(request.getUvRejectionPct())
+                .vltPct(request.getVltPct())
                 .price(request.getPrice())
                 .description(request.getDescription())
                 .imageUrl(request.getImageUrl())
@@ -52,6 +56,10 @@ public class ProductService {
         product.setService(resolveService(request.getServiceId()));
         product.setName(request.getName());
         product.setBrand(request.getBrand());
+        product.setGrade(request.getGrade());
+        product.setHeatRejectionPct(request.getHeatRejectionPct());
+        product.setUvRejectionPct(request.getUvRejectionPct());
+        product.setVltPct(request.getVltPct());
         product.setPrice(request.getPrice());
         product.setDescription(request.getDescription());
         product.setImageUrl(request.getImageUrl());
@@ -84,6 +92,10 @@ public class ProductService {
                 .serviceName(service != null ? service.getName() : null)
                 .name(product.getName())
                 .brand(product.getBrand())
+                .grade(product.getGrade())
+                .heatRejectionPct(product.getHeatRejectionPct())
+                .uvRejectionPct(product.getUvRejectionPct())
+                .vltPct(product.getVltPct())
                 .price(product.getPrice())
                 .description(product.getDescription())
                 .imageUrl(product.getImageUrl())

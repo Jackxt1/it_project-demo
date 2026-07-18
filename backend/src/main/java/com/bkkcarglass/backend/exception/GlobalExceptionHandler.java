@@ -44,6 +44,16 @@ public class GlobalExceptionHandler {
         return buildResponse(HttpStatus.BAD_REQUEST, ex.getMessage());
     }
 
+    @ExceptionHandler(TechnicianNotAssignedException.class)
+    public ResponseEntity<Map<String, Object>> handleTechnicianNotAssigned(TechnicianNotAssignedException ex) {
+        return buildResponse(HttpStatus.BAD_REQUEST, ex.getMessage());
+    }
+
+    @ExceptionHandler(TechnicianDeactivatedException.class)
+    public ResponseEntity<Map<String, Object>> handleTechnicianDeactivated(TechnicianDeactivatedException ex) {
+        return buildResponse(HttpStatus.CONFLICT, ex.getMessage());
+    }
+
     @ExceptionHandler(ReviewAlreadyExistsException.class)
     public ResponseEntity<Map<String, Object>> handleReviewAlreadyExists(ReviewAlreadyExistsException ex) {
         return buildResponse(HttpStatus.CONFLICT, ex.getMessage());

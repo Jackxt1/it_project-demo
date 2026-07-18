@@ -11,6 +11,8 @@ CREATE TABLE IF NOT EXISTS users (
     updated_at    TIMESTAMP    NOT NULL DEFAULT now()
 )@@
 
+ALTER TABLE users ADD COLUMN IF NOT EXISTS fcm_token VARCHAR(255)@@
+
 CREATE TABLE IF NOT EXISTS services (
     id          BIGSERIAL PRIMARY KEY,
     name        VARCHAR(150) NOT NULL,
@@ -21,15 +23,33 @@ CREATE TABLE IF NOT EXISTS services (
 )@@
 
 CREATE TABLE IF NOT EXISTS products (
-    id          BIGSERIAL PRIMARY KEY,
-    service_id  BIGINT REFERENCES services (id) ON DELETE SET NULL,
-    name        VARCHAR(150) NOT NULL,
-    brand       VARCHAR(100),
-    price       NUMERIC(10, 2) NOT NULL,
-    description TEXT,
-    image_url   VARCHAR(500),
-    created_at  TIMESTAMP NOT NULL DEFAULT now(),
-    updated_at  TIMESTAMP NOT NULL DEFAULT now()
+    id                BIGSERIAL PRIMARY KEY,
+    service_id        BIGINT REFERENCES services (id) ON DELETE SET NULL,
+    name              VARCHAR(150) NOT NULL,
+    brand             VARCHAR(100),
+    grade             VARCHAR(50),
+    heat_rejection_pct SMALLINT CHECK (heat_rejection_pct BETWEEN 0 AND 100),
+    uv_rejection_pct  SMALLINT CHECK (uv_rejection_pct BETWEEN 0 AND 100),
+    vlt_pct           SMALLINT CHECK (vlt_pct BETWEEN 0 AND 100),
+    price             NUMERIC(10, 2) NOT NULL,
+    description       TEXT,
+    image_url         VARCHAR(500),
+    created_at        TIMESTAMP NOT NULL DEFAULT now(),
+    updated_at        TIMESTAMP NOT NULL DEFAULT now()
+)@@
+
+ALTER TABLE products ADD COLUMN IF NOT EXISTS grade VARCHAR(50)@@
+ALTER TABLE products ADD COLUMN IF NOT EXISTS heat_rejection_pct SMALLINT@@
+ALTER TABLE products ADD COLUMN IF NOT EXISTS uv_rejection_pct SMALLINT@@
+ALTER TABLE products ADD COLUMN IF NOT EXISTS vlt_pct SMALLINT@@
+
+CREATE TABLE IF NOT EXISTS technicians (
+    id         BIGSERIAL PRIMARY KEY,
+    full_name  VARCHAR(150) NOT NULL,
+    phone      VARCHAR(30),
+    is_active  BOOLEAN   NOT NULL DEFAULT true,
+    created_at TIMESTAMP NOT NULL DEFAULT now(),
+    updated_at TIMESTAMP NOT NULL DEFAULT now()
 )@@
 
 CREATE TABLE IF NOT EXISTS bookings (
@@ -49,6 +69,9 @@ CREATE TABLE IF NOT EXISTS bookings (
     updated_at   TIMESTAMP NOT NULL DEFAULT now()
 )@@
 
+ALTER TABLE bookings ADD COLUMN IF NOT EXISTS technician_id BIGINT
+    REFERENCES technicians (id) ON DELETE SET NULL@@
+
 CREATE TABLE IF NOT EXISTS booking_status_history (
     id         BIGSERIAL PRIMARY KEY,
     booking_id BIGINT NOT NULL REFERENCES bookings (id) ON DELETE CASCADE,
@@ -67,10 +90,23 @@ CREATE TABLE IF NOT EXISTS reviews (
     created_at TIMESTAMP NOT NULL DEFAULT now()
 )@@
 
+CREATE TABLE IF NOT EXISTS chat_messages (
+    id          BIGSERIAL PRIMARY KEY,
+    booking_id  BIGINT NOT NULL REFERENCES bookings (id) ON DELETE CASCADE,
+    sender_type VARCHAR(20) NOT NULL CHECK (sender_type IN ('CUSTOMER', 'ADMIN', 'BOT')),
+    sender_id   BIGINT REFERENCES users (id) ON DELETE SET NULL,
+    message     TEXT NOT NULL,
+    created_at  TIMESTAMP NOT NULL DEFAULT now(),
+    read_at     TIMESTAMP
+)@@
+
+CREATE INDEX IF NOT EXISTS idx_chat_messages_booking_id ON chat_messages (booking_id)@@
+
 CREATE INDEX IF NOT EXISTS idx_products_service_id ON products (service_id)@@
 CREATE INDEX IF NOT EXISTS idx_bookings_user_id ON bookings (user_id)@@
 CREATE INDEX IF NOT EXISTS idx_bookings_service_id ON bookings (service_id)@@
 CREATE INDEX IF NOT EXISTS idx_bookings_status ON bookings (status)@@
+CREATE INDEX IF NOT EXISTS idx_bookings_technician_id ON bookings (technician_id)@@
 CREATE INDEX IF NOT EXISTS idx_booking_status_history_booking_id ON booking_status_history (booking_id)@@
 CREATE INDEX IF NOT EXISTS idx_reviews_user_id ON reviews (user_id)@@
 
@@ -97,4 +133,8 @@ CREATE TRIGGER trg_products_updated_at BEFORE UPDATE ON products
 
 DROP TRIGGER IF EXISTS trg_bookings_updated_at ON bookings@@
 CREATE TRIGGER trg_bookings_updated_at BEFORE UPDATE ON bookings
+    FOR EACH ROW EXECUTE FUNCTION set_updated_at()@@
+
+DROP TRIGGER IF EXISTS trg_technicians_updated_at ON technicians@@
+CREATE TRIGGER trg_technicians_updated_at BEFORE UPDATE ON technicians
     FOR EACH ROW EXECUTE FUNCTION set_updated_at()@@

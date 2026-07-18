@@ -20,6 +20,8 @@ public class BookingResponse {
     private String serviceName;
     private Long productId;
     private String productName;
+    private Long technicianId;
+    private String technicianName;
     private LocalDate bookingDate;
     private String timeSlot;
     private String status;

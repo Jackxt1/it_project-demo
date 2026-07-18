@@ -13,6 +13,10 @@ public class ProductRecommendation {
     private Long productId;
     private String name;
     private String brand;
+    private String grade;
+    private Integer heatRejectionPct;
+    private Integer uvRejectionPct;
+    private Integer vltPct;
     private BigDecimal price;
     private String reason;
 }

@@ -45,7 +45,8 @@ public class ChatbotService {
 
     @Transactional(readOnly = true)
     public ChatbotRecommendResponse recommend(ChatbotRecommendRequest request) {
-        List<Product> products = productRepository.findByServiceId(request.getServiceId());
+        List<Product> products = productRepository.findByServiceIdAndPriceLessThanEqual(
+                request.getServiceId(), request.getBudget());
         if (products.isEmpty()) {
             return new ChatbotRecommendResponse(List.of(), "fallback");
         }
@@ -92,6 +93,10 @@ public class ChatbotService {
                                 .productId(p.getId())
                                 .name(p.getName())
                                 .brand(p.getBrand())
+                                .grade(p.getGrade())
+                                .heatRejectionPct(p.getHeatRejectionPct())
+                                .uvRejectionPct(p.getUvRejectionPct())
+                                .vltPct(p.getVltPct())
                                 .price(p.getPrice())
                                 .reason(reason)
                                 .build()));
@@ -110,20 +115,26 @@ public class ChatbotService {
         StringBuilder productLines = new StringBuilder();
         for (Product p : products) {
             productLines.append(String.format(
-                    "- productId=%d, name=%s, brand=%s, price=%s, description=%s%n",
-                    p.getId(), p.getName(), p.getBrand(), p.getPrice(),
+                    "- productId=%d, name=%s, brand=%s, grade=%s, กันร้อน=%s%%, กันยูวี=%s%%, ความเข้ม=%s%%, price=%s, description=%s%n",
+                    p.getId(), p.getName(), p.getBrand(),
+                    p.getGrade() != null ? p.getGrade() : "-",
+                    p.getHeatRejectionPct() != null ? p.getHeatRejectionPct() : "-",
+                    p.getUvRejectionPct() != null ? p.getUvRejectionPct() : "-",
+                    p.getVltPct() != null ? p.getVltPct() : "-",
+                    p.getPrice(),
                     p.getDescription() != null ? p.getDescription() : ""));
         }
 
         return "คุณเป็นผู้ช่วยแนะนำสินค้าให้ร้านติดฟิล์มรถยนต์และซ่อม/เปลี่ยนกระจก\n" +
-                "ลูกค้ามีงบประมาณ " + request.getBudget() + " บาท\n" +
+                "ลูกค้ามีงบประมาณ " + request.getBudget() + " บาท " +
+                "รายการสินค้าด้านล่างถูกกรองราคาให้อยู่ในงบนี้แล้ว ห้ามแนะนำสินค้านอกรายการนี้และห้ามเสนอราคาอื่น\n" +
                 (request.getMessage() != null && !request.getMessage().isBlank()
                         ? "ข้อความเพิ่มเติมจากลูกค้า: " + request.getMessage() + "\n"
                         : "") +
-                "รายการสินค้าที่มี:\n" + productLines +
-                "จงเลือกสินค้าที่เหมาะสมที่สุด 1-3 รายการสำหรับงบประมาณนี้ " +
+                "รายการสินค้าที่อยู่ในงบ:\n" + productLines +
+                "จงเปรียบเทียบสเปค (กันร้อน/กันยูวี/ความเข้ม) แล้วเลือกสินค้าที่เหมาะสมที่สุด 1-3 รายการ " +
                 "ตอบกลับเป็น JSON array เท่านั้น ไม่ต้องมีข้อความอื่น รูปแบบแต่ละรายการคือ " +
-                "{\"productId\": <number>, \"reason\": \"<เหตุผลสั้นๆ เป็นภาษาไทย>\"}";
+                "{\"productId\": <number>, \"reason\": \"<เหตุผลสั้นๆ เป็นภาษาไทย เทียบสเปคประกอบ>\"}";
     }
 
     private List<ProductRecommendation> fallbackRecommend(BigDecimal budget, List<Product> products) {
@@ -134,6 +145,10 @@ public class ChatbotService {
                         .productId(p.getId())
                         .name(p.getName())
                         .brand(p.getBrand())
+                        .grade(p.getGrade())
+                        .heatRejectionPct(p.getHeatRejectionPct())
+                        .uvRejectionPct(p.getUvRejectionPct())
+                        .vltPct(p.getVltPct())
                         .price(p.getPrice())
                         .reason("ราคาใกล้เคียงกับงบประมาณที่คุณระบุ (" + budget + " บาท)")
                         .build())

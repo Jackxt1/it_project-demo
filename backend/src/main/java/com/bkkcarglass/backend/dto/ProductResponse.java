@@ -16,6 +16,10 @@ public class ProductResponse {
     private String serviceName;
     private String name;
     private String brand;
+    private String grade;
+    private Integer heatRejectionPct;
+    private Integer uvRejectionPct;
+    private Integer vltPct;
     private BigDecimal price;
     private String description;
     private String imageUrl;

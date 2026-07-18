@@ -31,6 +31,9 @@ public class User {
     @Column(length = 30)
     private String phone;
 
+    @Column(name = "fcm_token", length = 255)
+    private String fcmToken;
+
     @Column(name = "password_hash", nullable = false)
     private String passwordHash;
 
