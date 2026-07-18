@@ -1,5 +1,6 @@
 package com.bkkcarglass.backend.service;
 
+import com.bkkcarglass.backend.dto.AcceptQuoteRequest;
 import com.bkkcarglass.backend.dto.BookingRequest;
 import com.bkkcarglass.backend.dto.BookingResponse;
 import com.bkkcarglass.backend.dto.BookingStatusHistoryResponse;
@@ -9,6 +10,7 @@ import com.bkkcarglass.backend.entity.Booking;
 import com.bkkcarglass.backend.entity.BookingStatus;
 import com.bkkcarglass.backend.entity.BookingStatusHistory;
 import com.bkkcarglass.backend.entity.NotificationType;
+import com.bkkcarglass.backend.entity.PaymentType;
 import com.bkkcarglass.backend.entity.Product;
 import com.bkkcarglass.backend.entity.ServiceEntity;
 import com.bkkcarglass.backend.entity.Technician;
@@ -16,6 +18,7 @@ import com.bkkcarglass.backend.entity.User;
 import com.bkkcarglass.backend.entity.Vehicle;
 import com.bkkcarglass.backend.exception.BookingAccessDeniedException;
 import com.bkkcarglass.backend.exception.BookingSlotFullException;
+import com.bkkcarglass.backend.exception.QuoteNotAvailableException;
 import com.bkkcarglass.backend.exception.ResourceNotFoundException;
 import com.bkkcarglass.backend.exception.TechnicianDeactivatedException;
 import com.bkkcarglass.backend.exception.TechnicianNotAssignedException;
@@ -31,6 +34,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.util.List;
 
@@ -157,11 +161,14 @@ public class BookingService {
                 .changedBy(currentUser)
                 .build());
 
+        boolean quoteSent = request.getQuotePrice() != null;
         notificationService.notifyUser(
                 booking.getUser(),
-                "อัปเดตสถานะการจอง",
-                statusMessage(booking.getStatus()),
-                NotificationType.BOOKING_STATUS,
+                quoteSent ? "ใบเสนอราคามาแล้ว" : "อัปเดตสถานะการจอง",
+                quoteSent
+                        ? "ร้านส่งใบเสนอราคา %s บาท ตรวจสอบและยืนยันได้ในหน้าการจอง".formatted(booking.getQuotePrice())
+                        : statusMessage(booking.getStatus()),
+                quoteSent ? NotificationType.QUOTE : NotificationType.BOOKING_STATUS,
                 booking);
 
         return toResponse(booking);
@@ -189,6 +196,36 @@ public class BookingService {
 
         booking.setTechnician(technician);
         booking = bookingRepository.save(booking);
+        return toResponse(booking);
+    }
+
+    @Transactional
+    public BookingResponse acceptQuote(Long id, AcceptQuoteRequest request) {
+        Booking booking = getEntity(id);
+        User currentUser = currentUserService.getCurrentUser();
+        if (!booking.getUser().getId().equals(currentUser.getId())) {
+            throw new BookingAccessDeniedException();
+        }
+        if (booking.getQuotePrice() == null) {
+            throw new QuoteNotAvailableException();
+        }
+
+        BigDecimal paidAmount = request.getPaymentType() == PaymentType.DEPOSIT
+                ? booking.getQuotePrice().multiply(new BigDecimal("0.30")).setScale(2, RoundingMode.HALF_UP)
+                : booking.getQuotePrice();
+
+        booking.setPaymentType(request.getPaymentType());
+        booking.setPaidAmount(paidAmount);
+        booking.setStatus(BookingStatus.CONFIRMED);
+        booking = bookingRepository.save(booking);
+
+        historyRepository.save(BookingStatusHistory.builder()
+                .booking(booking)
+                .status(BookingStatus.CONFIRMED)
+                .note("ลูกค้ายืนยันใบเสนอราคา")
+                .changedBy(currentUser)
+                .build());
+
         return toResponse(booking);
     }
 

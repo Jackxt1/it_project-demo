@@ -1,5 +1,6 @@
 package com.bkkcarglass.backend.controller;
 
+import com.bkkcarglass.backend.dto.AcceptQuoteRequest;
 import com.bkkcarglass.backend.dto.BookingRequest;
 import com.bkkcarglass.backend.dto.BookingResponse;
 import com.bkkcarglass.backend.dto.BookingStatusUpdateRequest;
@@ -54,5 +55,11 @@ public class BookingController {
     public ResponseEntity<BookingResponse> assignTechnician(
             @PathVariable Long id, @Valid @RequestBody BookingTechnicianAssignRequest request) {
         return ResponseEntity.ok(bookingService.assignTechnician(id, request));
+    }
+
+    @PutMapping("/{id}/accept-quote")
+    public ResponseEntity<BookingResponse> acceptQuote(
+            @PathVariable Long id, @Valid @RequestBody AcceptQuoteRequest request) {
+        return ResponseEntity.ok(bookingService.acceptQuote(id, request));
     }
 }

@@ -1,14 +1,18 @@
 package com.bkkcarglass.backend.service;
 
+import com.bkkcarglass.backend.dto.AcceptQuoteRequest;
 import com.bkkcarglass.backend.dto.BookingRequest;
 import com.bkkcarglass.backend.dto.BookingResponse;
 import com.bkkcarglass.backend.entity.BookingStatus;
 import com.bkkcarglass.backend.entity.Booking;
+import com.bkkcarglass.backend.entity.PaymentType;
 import com.bkkcarglass.backend.entity.ServiceEntity;
 import com.bkkcarglass.backend.entity.User;
 import com.bkkcarglass.backend.entity.Vehicle;
 import com.bkkcarglass.backend.entity.VehicleType;
+import com.bkkcarglass.backend.exception.BookingAccessDeniedException;
 import com.bkkcarglass.backend.exception.BookingSlotFullException;
+import com.bkkcarglass.backend.exception.QuoteNotAvailableException;
 import com.bkkcarglass.backend.exception.ResourceNotFoundException;
 import com.bkkcarglass.backend.repository.BookingRepository;
 import com.bkkcarglass.backend.repository.BookingStatusHistoryRepository;
@@ -34,6 +38,7 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -81,6 +86,17 @@ class BookingServiceTest {
         request.setBookingDate(LocalDate.now().plusDays(1));
         request.setTimeSlot("09:00");
         return request;
+    }
+
+    private Booking repairBookingWithQuote() {
+        Booking booking = Booking.builder()
+                .id(50L).user(customer).service(washService)
+                .bookingDate(LocalDate.now().plusDays(1)).timeSlot("09:00")
+                .status(BookingStatus.PENDING)
+                .quotePrice(new BigDecimal("2000.00"))
+                .build();
+        when(bookingRepository.findById(50L)).thenReturn(Optional.of(booking));
+        return booking;
     }
 
     @Test
@@ -150,5 +166,55 @@ class BookingServiceTest {
 
         assertEquals("Honda Civic", response.getVehicleBrandModel());
         assertEquals("ตด 8888", response.getVehicleLicensePlate());
+    }
+
+    @Test
+    void acceptQuote_depositPays30PercentAndConfirms() {
+        repairBookingWithQuote();
+        AcceptQuoteRequest request = new AcceptQuoteRequest();
+        request.setPaymentType(PaymentType.DEPOSIT);
+
+        BookingResponse response = bookingService.acceptQuote(50L, request);
+
+        assertEquals(new BigDecimal("600.00"), response.getPaidAmount());
+        assertEquals("DEPOSIT", response.getPaymentType());
+        assertEquals(BookingStatus.CONFIRMED.name(), response.getStatus());
+    }
+
+    @Test
+    void acceptQuote_fullPaysWholeQuote() {
+        repairBookingWithQuote();
+        AcceptQuoteRequest request = new AcceptQuoteRequest();
+        request.setPaymentType(PaymentType.FULL);
+
+        BookingResponse response = bookingService.acceptQuote(50L, request);
+
+        assertEquals(new BigDecimal("2000.00"), response.getPaidAmount());
+    }
+
+    @Test
+    void acceptQuote_throwsWhenNoQuoteYet() {
+        Booking booking = Booking.builder()
+                .id(51L).user(customer).service(washService)
+                .bookingDate(LocalDate.now().plusDays(1)).timeSlot("09:00")
+                .status(BookingStatus.PENDING)
+                .build();
+        when(bookingRepository.findById(51L)).thenReturn(Optional.of(booking));
+
+        AcceptQuoteRequest request = new AcceptQuoteRequest();
+        request.setPaymentType(PaymentType.DEPOSIT);
+
+        assertThrows(QuoteNotAvailableException.class, () -> bookingService.acceptQuote(51L, request));
+    }
+
+    @Test
+    void acceptQuote_rejectsNonOwner() {
+        Booking booking = repairBookingWithQuote();
+        booking.setUser(User.builder().id(999L).build());
+
+        AcceptQuoteRequest request = new AcceptQuoteRequest();
+        request.setPaymentType(PaymentType.DEPOSIT);
+
+        assertThrows(BookingAccessDeniedException.class, () -> bookingService.acceptQuote(50L, request));
     }
 }
