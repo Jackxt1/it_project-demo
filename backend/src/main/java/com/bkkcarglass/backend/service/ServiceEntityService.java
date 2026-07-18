@@ -33,6 +33,7 @@ public class ServiceEntityService {
                 .name(request.getName())
                 .description(request.getDescription())
                 .basePrice(request.getBasePrice())
+                .maxPerSlot(request.getMaxPerSlot() != null ? request.getMaxPerSlot() : 2)
                 .build();
         return toResponse(serviceRepository.save(entity));
     }
@@ -43,6 +44,9 @@ public class ServiceEntityService {
         entity.setName(request.getName());
         entity.setDescription(request.getDescription());
         entity.setBasePrice(request.getBasePrice());
+        if (request.getMaxPerSlot() != null) {
+            entity.setMaxPerSlot(request.getMaxPerSlot());
+        }
         return toResponse(serviceRepository.save(entity));
     }
 
@@ -63,6 +67,7 @@ public class ServiceEntityService {
                 .name(entity.getName())
                 .description(entity.getDescription())
                 .basePrice(entity.getBasePrice())
+                .maxPerSlot(entity.getMaxPerSlot())
                 .createdAt(entity.getCreatedAt())
                 .updatedAt(entity.getUpdatedAt())
                 .build();

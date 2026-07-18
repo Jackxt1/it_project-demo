@@ -30,7 +30,6 @@ app:
     secret: ${JWT_SECRET:ZmFrZS1zZWNyZXQta2V5LWZvci1ia2stY2FyZ2xhc3MtcHJvamVjdC1jaGFuZ2UtbWUtaW4tcHJvZC0xMjM0NTY3ODkw}
     expiration-ms: ${JWT_EXPIRATION_MS:86400000}
   booking:
-    max-per-slot: ${BOOKING_MAX_PER_SLOT:2}
   cloudinary:
     cloud-name: ${CLOUDINARY_CLOUD_NAME:}
     api-key: ${CLOUDINARY_API_KEY:}

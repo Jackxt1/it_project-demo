@@ -24,7 +24,6 @@ import com.bkkcarglass.backend.repository.ServiceRepository;
 import com.bkkcarglass.backend.repository.TechnicianRepository;
 import com.bkkcarglass.backend.security.CurrentUserService;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -43,9 +42,6 @@ public class BookingService {
     private final CurrentUserService currentUserService;
     private final PushNotificationService pushNotificationService;
 
-    @Value("${app.booking.max-per-slot:2}")
-    private int maxBookingsPerSlot;
-
     @Transactional
     public BookingResponse create(BookingRequest request) {
         User currentUser = currentUserService.getCurrentUser();
@@ -59,9 +55,10 @@ public class BookingService {
                     .orElseThrow(() -> new ResourceNotFoundException("Product", request.getProductId()));
         }
 
-        long activeCount = bookingRepository.countByBookingDateAndTimeSlotAndStatusNot(
-                request.getBookingDate(), request.getTimeSlot(), BookingStatus.CANCELLED);
-        if (activeCount >= maxBookingsPerSlot) {
+        long activeCount = bookingRepository.countByServiceIdAndBookingDateAndTimeSlotAndStatusNot(
+                service.getId(), request.getBookingDate(), request.getTimeSlot(), BookingStatus.CANCELLED);
+        int maxPerSlot = service.getMaxPerSlot() != null ? service.getMaxPerSlot() : 2;
+        if (activeCount >= maxPerSlot) {
             throw new BookingSlotFullException();
         }
 

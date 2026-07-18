@@ -15,6 +15,7 @@ public class ServiceResponse {
     private String name;
     private String description;
     private BigDecimal basePrice;
+    private Integer maxPerSlot;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 }

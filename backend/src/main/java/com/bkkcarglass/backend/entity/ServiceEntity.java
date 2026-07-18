@@ -32,6 +32,10 @@ public class ServiceEntity {
     @Column(name = "base_price", precision = 10, scale = 2)
     private BigDecimal basePrice;
 
+    @Column(name = "max_per_slot", nullable = false)
+    @Builder.Default
+    private Integer maxPerSlot = 2;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
