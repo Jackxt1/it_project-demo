@@ -182,3 +182,26 @@ CREATE TRIGGER trg_technicians_updated_at BEFORE UPDATE ON technicians
 DROP TRIGGER IF EXISTS trg_vehicles_updated_at ON vehicles@@
 CREATE TRIGGER trg_vehicles_updated_at BEFORE UPDATE ON vehicles
     FOR EACH ROW EXECUTE FUNCTION set_updated_at()@@
+
+-- Seed: car wash service and packages (idempotent)
+INSERT INTO services (name, description, base_price, max_per_slot)
+SELECT 'ล้างรถ', 'บริการล้างทำความสะอาดรถยนต์ที่ร้าน', 0, 5
+WHERE NOT EXISTS (SELECT 1 FROM services WHERE name = 'ล้างรถ')@@
+
+INSERT INTO products (service_id, name, price, description)
+SELECT s.id, 'ล้างธรรมดา', 200, 'ล้างภายนอก เช็ดแห้ง ดูดฝุ่นภายใน'
+FROM services s
+WHERE s.name = 'ล้างรถ'
+  AND NOT EXISTS (SELECT 1 FROM products WHERE name = 'ล้างธรรมดา')@@
+
+INSERT INTO products (service_id, name, price, description)
+SELECT s.id, 'ล้างพรีเมียม', 500, 'ล้างภายนอก เคลือบเงาสี ดูดฝุ่น เช็ดคอนโซลภายใน'
+FROM services s
+WHERE s.name = 'ล้างรถ'
+  AND NOT EXISTS (SELECT 1 FROM products WHERE name = 'ล้างพรีเมียม')@@
+
+INSERT INTO products (service_id, name, price, description)
+SELECT s.id, 'ล้าง + ขัดเคลือบสีเต็มระบบ', 1500, 'ล้างละเอียด ขัดลบรอยขนแมว เคลือบสีเต็มระบบ'
+FROM services s
+WHERE s.name = 'ล้างรถ'
+  AND NOT EXISTS (SELECT 1 FROM products WHERE name = 'ล้าง + ขัดเคลือบสีเต็มระบบ')@@

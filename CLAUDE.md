@@ -51,11 +51,16 @@ FCM push (ยิงอัตโนมัติทุกครั้งที่ 
 เป็นรูปแบบเดียวกัน. ที่ยังไม่เริ่ม: Flutter mobile app (ยังไม่มีโฟลเดอร์), Flutter Web admin UI (ยัง scaffold เปล่า
 ไม่มีหน้าจอจริง) — backend พร้อมให้ทั้งสองฝั่งต่อแล้ว
 
+เฟส 1 (Figma alignment) เสร็จแล้ว: vehicles CRUD, notifications เก็บย้อนหลัง (+endpoints /api/notifications),
+booking ผูกรถ/install_area/order_code/มัดจำ (payment_type, paid_amount), คิวต่อช่วงเวลาแยกตามบริการ
+(services.max_per_slot แทน BOOKING_MAX_PER_SLOT เดิม), GET /api/services/{id}/slots ดูคิวว่าง,
+products.is_active, accept-quote flow สำหรับงานซ่อมกระจก, seed บริการล้างรถ + 3 แพ็กเกจใน schema.sql
+
 ## Environment Variables (ต้องใส่ค่าจริงก่อน deploy)
 - `DB_URL`, `DB_USERNAME`, `DB_PASSWORD` — PostgreSQL connection จริง
 - `JWT_SECRET` — ต้องเปลี่ยนจาก placeholder ห้ามใช้ตอน production
 - `JWT_EXPIRATION_MS` — ปรับได้ตามต้องการ (default 1 วัน)
-- `BOOKING_MAX_PER_SLOT` — จำนวน booking สูงสุดต่อช่วงเวลา (default 2)
+- `BOOKING_TIME_SLOTS` — ช่วงเวลาจองที่เปิดให้ (default `09:00,10:30,12:00,13:30,15:00,16:30`)
 - `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET` — จาก Cloudinary dashboard
 - `GEMINI_API_KEY`, `GEMINI_MODEL` — จาก Google AI Studio (ไม่ใส่ = fallback เป็น price-proximity)
 - `FIREBASE_SERVICE_ACCOUNT_PATH` — path ไฟล์ service account JSON (ไม่ใส่ = push notification ปิดเงียบๆ)
