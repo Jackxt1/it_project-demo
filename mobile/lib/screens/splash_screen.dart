@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
+import '../api/auth_service.dart';
 import '../theme/app_theme.dart';
+import 'auth/login_screen.dart';
 import 'main_shell.dart';
 
 class SplashScreen extends StatelessWidget {
@@ -55,8 +57,12 @@ class SplashScreen extends StatelessWidget {
                 child: InkWell(
                   borderRadius: BorderRadius.circular(24),
                   onTap: () {
+                    final loggedIn = AuthService.instance.session != null;
                     Navigator.of(context).pushReplacement(
-                      MaterialPageRoute(builder: (_) => const MainShell()),
+                      MaterialPageRoute(
+                        builder: (_) =>
+                            loggedIn ? const MainShell() : const LoginScreen(),
+                      ),
                     );
                   },
                   child: const Padding(
