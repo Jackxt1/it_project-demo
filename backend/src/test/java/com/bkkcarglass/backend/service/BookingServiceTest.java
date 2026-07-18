@@ -6,6 +6,7 @@ import com.bkkcarglass.backend.dto.BookingResponse;
 import com.bkkcarglass.backend.entity.BookingStatus;
 import com.bkkcarglass.backend.entity.Booking;
 import com.bkkcarglass.backend.entity.PaymentType;
+import com.bkkcarglass.backend.entity.Product;
 import com.bkkcarglass.backend.entity.ServiceEntity;
 import com.bkkcarglass.backend.entity.User;
 import com.bkkcarglass.backend.entity.Vehicle;
@@ -38,7 +39,6 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -133,6 +133,20 @@ class BookingServiceTest {
         assertNotNull(response.getOrderCode());
         assertTrue(response.getOrderCode().startsWith("BKDL-"));
         assertEquals(new BigDecimal("0"), response.getPaidAmount());
+    }
+
+    @Test
+    void create_rejectsInactiveProduct() {
+        Product inactiveProduct = Product.builder().id(7L).name("น้ำยาล้างรถ").active(false).build();
+        lenient().when(bookingRepository.countByServiceIdAndBookingDateAndTimeSlotAndStatusNot(
+                anyLong(), any(LocalDate.class), anyString(), eq(BookingStatus.CANCELLED)))
+                .thenReturn(0L);
+        when(productRepository.findById(7L)).thenReturn(Optional.of(inactiveProduct));
+
+        BookingRequest request = washRequest();
+        request.setProductId(7L);
+
+        assertThrows(ResourceNotFoundException.class, () -> bookingService.create(request));
     }
 
     @Test

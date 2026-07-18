@@ -7,6 +7,8 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -22,7 +24,13 @@ public class ProductController {
     public ResponseEntity<List<ProductResponse>> findAll(
             @RequestParam(required = false) Long serviceId,
             @RequestParam(defaultValue = "false") boolean includeInactive) {
-        return ResponseEntity.ok(productService.findAll(serviceId, includeInactive));
+        return ResponseEntity.ok(productService.findAll(serviceId, includeInactive && isAdmin()));
+    }
+
+    private boolean isAdmin() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        return auth != null && auth.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
     }
 
     @GetMapping("/{id}")

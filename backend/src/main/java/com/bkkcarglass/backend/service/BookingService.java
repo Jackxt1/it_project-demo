@@ -65,6 +65,9 @@ public class BookingService {
             product = productRepository.findById(request.getProductId())
                     .orElseThrow(() -> new ResourceNotFoundException("Product", request.getProductId()));
         }
+        if (product != null && !product.isActive()) {
+            throw new ResourceNotFoundException("Product", request.getProductId());
+        }
 
         long activeCount = bookingRepository.countByServiceIdAndBookingDateAndTimeSlotAndStatusNot(
                 service.getId(), request.getBookingDate(), request.getTimeSlot(), BookingStatus.CANCELLED);

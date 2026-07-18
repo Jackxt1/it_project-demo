@@ -208,6 +208,7 @@ Endpoints (ทั้งหมดต้อง login):
 - แนะนำเริ่มจาก **PromptPay QR + แอดมินกดยืนยันยอด** (ไม่ต้องผูก gateway, เหมาะโปรเจกต์นักศึกษา/ร้านจริงระยะแรก): สร้าง QR จากยอด → ลูกค้าโอน → อัปโหลดสลิป → แอดมินยืนยัน → paid_amount อัปเดต
 - ทางเลือกถัดไป: Omise/2C2P/Stripe ถ้าต้องการตัดบัตรจริง
 - ตารางใหม่ `payments` (booking_id, amount, method, slip_image_url, status PENDING/CONFIRMED/REJECTED, confirmed_by, timestamps)
+- เฟส 1 บันทึก `paid_amount` ตามที่ client ส่งมา (mock) — ตอนทำเฟส 4 ต้องคำนวณ/ตรวจยอดฝั่ง server จากราคาสินค้า+payment_type เสมอ และปฏิเสธ payment fields ตอน create ของงานที่ต้องรอ quote
 
 ### 4.2 สถานะงานละเอียดแบบ step (หน้า "ติดตามสถานะ" แบบ 5 ขั้นใน Figma)
 
