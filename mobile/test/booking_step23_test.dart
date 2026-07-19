@@ -164,7 +164,12 @@ void main() {
 
       await tester.pumpWidget(
         _wrap(
-          Step3Schedule(draft: draft, onNext: () {}, onBack: () {}),
+          Step3Schedule(
+            draft: draft,
+            onNext: () {},
+            onBack: () {},
+            onBookingCreated: (_) {},
+          ),
         ),
       );
       await tester.pumpAndSettle();

@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 
 import '../../api/api_client.dart';
 import '../../api/booking_service.dart';
+import '../../models/booking.dart';
 import '../../models/slot.dart';
 import '../../theme/app_theme.dart';
 import 'booking_flow.dart';
@@ -29,14 +30,22 @@ class Step3Schedule extends StatefulWidget {
     required this.draft,
     required this.onNext,
     required this.onBack,
+    required this.onBookingCreated,
   });
 
   final BookingDraft draft;
+
+  /// Advances to step 4 (payment) — used for film/wash drafts only.
   final VoidCallback onNext;
 
   /// Invoked by the "เปลี่ยน" button next to the selection summary card, to
   /// go back to step 2.
   final VoidCallback onBack;
+
+  /// Repair drafts skip step 4 entirely: confirming here calls
+  /// `createBooking` directly (without paymentType/paidAmount) and, on
+  /// success, this callback jumps the flow straight to step 5.
+  final void Function(Booking booking) onBookingCreated;
 
   @override
   State<Step3Schedule> createState() => _Step3ScheduleState();
@@ -50,6 +59,11 @@ class _Step3ScheduleState extends State<Step3Schedule> {
   List<Slot> _slots = [];
   bool _loadingSlots = false;
   String? _slotsError;
+
+  bool _submitting = false;
+  String? _submitError;
+
+  BookingMode get _mode => bookingModeFor(widget.draft.service);
 
   @override
   void initState() {
@@ -120,12 +134,54 @@ class _Step3ScheduleState extends State<Step3Schedule> {
     setState(() => _selectedSlot = slot);
   }
 
-  bool get _canConfirm => _selectedDate != null && _selectedSlot != null;
+  bool get _hasSelection => _selectedDate != null && _selectedSlot != null;
+
+  bool get _canConfirm => _hasSelection && !_submitting;
 
   void _confirm() {
     widget.draft.date = _selectedDate;
     widget.draft.timeSlot = _selectedSlot;
-    widget.onNext();
+    if (_mode == BookingMode.repair) {
+      _submitRepairBooking();
+    } else {
+      widget.onNext();
+    }
+  }
+
+  /// Repair drafts have no step 4 (payment) — this sends the booking
+  /// straight to the backend with `budget`/`imageUrl` (no
+  /// `paymentType`/`paidAmount`, since nothing has been paid yet) and hands
+  /// the result to [Step3Schedule.onBookingCreated] to jump to step 5.
+  Future<void> _submitRepairBooking() async {
+    setState(() {
+      _submitting = true;
+      _submitError = null;
+    });
+    try {
+      final booking = await BookingService.instance.createBooking(
+        widget.draft,
+      );
+      if (!mounted) return;
+      widget.onBookingCreated(booking);
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _submitError = e.message;
+        _submitting = false;
+      });
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(SnackBar(content: Text(e.message)));
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _submitError = 'ส่งคำจองไม่สำเร็จ';
+        _submitting = false;
+      });
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(const SnackBar(content: Text('ส่งคำจองไม่สำเร็จ')));
+    }
   }
 
   String get _summaryCardText {
@@ -282,11 +338,14 @@ class _Step3ScheduleState extends State<Step3Schedule> {
   }
 
   Widget _buildBottomBar() {
-    final summaryText = _canConfirm
+    final summaryText = _hasSelection
         ? 'วันเวลาที่เลือก: '
               '${DateFormat('EEEE d MMMM', 'th').format(_selectedDate!)} '
               'เวลา $_selectedSlot'
         : 'กรุณาเลือกวันและเวลา';
+    final confirmLabel = _mode == BookingMode.repair
+        ? 'ส่งคำจอง'
+        : 'ยืนยันเวลา';
     return SafeArea(
       top: false,
       child: Padding(
@@ -298,11 +357,27 @@ class _Step3ScheduleState extends State<Step3Schedule> {
               summaryText,
               style: const TextStyle(fontSize: 13, color: Colors.black54),
             ),
+            if (_submitError != null) ...[
+              const SizedBox(height: 4),
+              Text(
+                _submitError!,
+                style: const TextStyle(fontSize: 12, color: Colors.red),
+              ),
+            ],
             const SizedBox(height: 8),
             FilledButton(
               style: FilledButton.styleFrom(backgroundColor: AppColors.primary),
               onPressed: _canConfirm ? _confirm : null,
-              child: const Text('ยืนยันเวลา'),
+              child: _submitting
+                  ? const SizedBox(
+                      height: 20,
+                      width: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
+                  : Text(confirmLabel),
             ),
           ],
         ),

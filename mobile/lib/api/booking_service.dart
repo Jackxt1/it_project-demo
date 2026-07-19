@@ -1,4 +1,6 @@
+import '../models/booking.dart';
 import '../models/slot.dart';
+import '../screens/booking/booking_flow.dart' show BookingDraft;
 import 'api_client.dart';
 
 /// Fetches slot availability and (later) creates bookings against the
@@ -22,6 +24,33 @@ class BookingService {
       '/api/services/$serviceId/slots?date=${_formatDate(date)}',
     );
     return SlotList.fromJson(data as Map<String, dynamic>).slots;
+  }
+
+  /// `POST /api/bookings` body
+  /// `{serviceId, productId?, vehicleId?, installArea?, bookingDate,
+  ///   timeSlot, budget?, imageUrl?, paymentType?, paidAmount?}` →
+  /// `BookingResponse`.
+  ///
+  /// `paymentType`/`paidAmount` are only sent when [BookingDraft.paidAmount]
+  /// has been set (i.e. after step 4's payment choice) — the repair flow
+  /// skips step 4 and calls this with `paidAmount` still null, so those two
+  /// fields are simply omitted from the request per the backend contract.
+  Future<Booking> createBooking(BookingDraft draft) async {
+    final paidAmount = draft.paidAmount;
+    final body = <String, dynamic>{
+      'serviceId': draft.service!.id,
+      if (draft.product != null) 'productId': draft.product!.id,
+      if (draft.vehicle != null) 'vehicleId': draft.vehicle!.id,
+      if (draft.installArea != null) 'installArea': draft.installArea,
+      'bookingDate': _formatDate(draft.date!),
+      'timeSlot': draft.timeSlot,
+      if (draft.budget != null) 'budget': draft.budget,
+      if (draft.imageUrl != null) 'imageUrl': draft.imageUrl,
+      if (paidAmount != null) 'paymentType': draft.paymentType,
+      'paidAmount': ?paidAmount,
+    };
+    final data = await ApiClient.instance.post('/api/bookings', body);
+    return Booking.fromJson(data as Map<String, dynamic>);
   }
 
   /// `date` as `YYYY-MM-DD`, independent of locale (the backend expects a

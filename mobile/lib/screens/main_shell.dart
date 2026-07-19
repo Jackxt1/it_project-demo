@@ -23,12 +23,17 @@ class MainShell extends StatefulWidget {
 class _MainShellState extends State<MainShell> {
   int _currentIndex = 0;
 
-  void _handleBookService(ServiceItem? service) {
-    Navigator.of(context).push(
+  Future<void> _handleBookService(ServiceItem? service) async {
+    final result = await Navigator.of(context).push<String>(
       MaterialPageRoute(
         builder: (_) => BookingFlowScreen(initialService: service),
       ),
     );
+    // Step 5's "ไปยังหน้าติดตามสถานะ" button pops the flow with 'bookings'
+    // so we can switch straight to the bookings tab.
+    if (result == 'bookings' && mounted) {
+      setState(() => _currentIndex = 1);
+    }
   }
 
   List<Widget> _defaultPages() => [

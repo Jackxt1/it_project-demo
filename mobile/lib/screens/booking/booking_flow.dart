@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../api/api_client.dart';
 import '../../api/catalog_service.dart';
+import '../../models/booking.dart';
 import '../../models/product.dart';
 import '../../models/service_item.dart';
 import '../../models/vehicle.dart';
@@ -9,6 +10,8 @@ import '../../theme/app_theme.dart';
 import 'step1_vehicle.dart';
 import 'step2_product.dart';
 import 'step3_schedule.dart';
+import 'step4_payment.dart';
+import 'step5_success.dart';
 
 /// Mutable holder for everything collected across the 5-step booking flow.
 /// Passed down to every step widget so each one can read/write its slice
@@ -25,14 +28,41 @@ class BookingDraft {
   DateTime? date;
   String? timeSlot;
   String paymentType = 'DEPOSIT';
+
+  /// Amount chosen on step 4 (deposit or full). Left null for the repair
+  /// flow (which skips step 4 entirely), so [BookingService.createBooking]
+  /// knows to omit `paymentType`/`paidAmount` from the request body.
+  double? paidAmount;
+}
+
+/// The three booking "modes" derived from the selected service's name —
+/// mirrors the private detection already duplicated inside step2/step3, but
+/// exposed here so step3 (repair short-circuit), step4/step5 (film/wash
+/// payment + summary) and this flow's own routing all agree on it.
+enum BookingMode { film, wash, repair }
+
+BookingMode bookingModeFor(ServiceItem? service) {
+  final name = service?.name ?? '';
+  if (name.contains('ฟิล์ม')) return BookingMode.film;
+  if (name.contains('ล้าง')) return BookingMode.wash;
+  return BookingMode.repair;
+}
+
+/// Product/package price plus the service's install fee (its `basePrice`,
+/// when set), used by step4's cost breakdown and step5's paid/remaining
+/// summary so both agree on the same total.
+double bookingTotalAmount(BookingDraft draft) {
+  final productPrice = draft.product?.price ?? 0;
+  final basePrice = draft.service?.basePrice ?? 0;
+  return productPrice + (basePrice > 0 ? basePrice : 0);
 }
 
 const List<String> _stepTitles = [
   'เลือกรถ',
   'เลือกสินค้า',
   'นัดเวลา',
-  'ขั้นตอน 4',
-  'ขั้นตอน 5',
+  'ชำระเงิน',
+  'สำเร็จ',
 ];
 
 /// Full-screen booking flow: header (back button, "BKK CAR GLASS & FLIM",
@@ -101,14 +131,35 @@ class _BookingFlowScreenState extends State<BookingFlowScreen> {
     });
   }
 
+  Booking? _createdBooking;
+
   void _goNext() {
     if (_step < 5) {
       setState(() => _step++);
     }
   }
 
+  /// Called by step3 (repair drafts, which skip step 4 entirely) and step4
+  /// (film/wash drafts, after payment) once `createBooking` succeeds.
+  void _handleBookingCreated(Booking booking) {
+    setState(() {
+      _createdBooking = booking;
+      _step = 5;
+    });
+  }
+
+  /// "ไปยังหน้าติดตามสถานะ" on step 5 — closes the flow and tells
+  /// [MainShell] to switch to the bookings tab.
+  void _handleDone() {
+    Navigator.of(context).pop('bookings');
+  }
+
   void _handleBack() {
-    if (_step > 1) {
+    if (_step == 5) {
+      // Going back from the success screen makes no sense (the booking is
+      // already created) — treat it the same as "ไปยังหน้าติดตามสถานะ".
+      _handleDone();
+    } else if (_step > 1) {
       setState(() => _step--);
     } else {
       Navigator.of(context).pop();
@@ -201,6 +252,18 @@ class _BookingFlowScreenState extends State<BookingFlowScreen> {
           draft: _draft,
           onNext: _goNext,
           onBack: () => setState(() => _step = 2),
+          onBookingCreated: _handleBookingCreated,
+        );
+      case 4:
+        return Step4Payment(
+          draft: _draft,
+          onBookingCreated: _handleBookingCreated,
+        );
+      case 5:
+        return Step5Success(
+          draft: _draft,
+          booking: _createdBooking!,
+          onDone: _handleDone,
         );
       default:
         return Center(child: Text('ขั้นตอน $_step'));
