@@ -49,6 +49,11 @@ public class GlobalExceptionHandler {
         return buildResponse(HttpStatus.BAD_REQUEST, ex.getMessage());
     }
 
+    @ExceptionHandler(InvalidStatusTransitionException.class)
+    public ResponseEntity<Map<String, Object>> handleInvalidStatusTransition(InvalidStatusTransitionException ex) {
+        return buildResponse(HttpStatus.BAD_REQUEST, ex.getMessage());
+    }
+
     @ExceptionHandler(TechnicianDeactivatedException.class)
     public ResponseEntity<Map<String, Object>> handleTechnicianDeactivated(TechnicianDeactivatedException ex) {
         return buildResponse(HttpStatus.CONFLICT, ex.getMessage());
@@ -71,6 +76,22 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(QuoteNotAvailableException.class)
     public ResponseEntity<Map<String, Object>> handleQuoteNotAvailable(QuoteNotAvailableException ex) {
+        return buildResponse(HttpStatus.BAD_REQUEST, ex.getMessage());
+    }
+
+    @ExceptionHandler(OutOfStockException.class)
+    public ResponseEntity<Map<String, Object>> handleOutOfStock(OutOfStockException ex) {
+        return buildResponse(HttpStatus.CONFLICT, ex.getMessage());
+    }
+
+    @ExceptionHandler(org.springframework.security.authentication.DisabledException.class)
+    public ResponseEntity<Map<String, Object>> handleDisabled(
+            org.springframework.security.authentication.DisabledException ex) {
+        return buildResponse(HttpStatus.FORBIDDEN, "บัญชีนี้ถูกระงับการใช้งาน");
+    }
+
+    @ExceptionHandler(InvalidCurrentPasswordException.class)
+    public ResponseEntity<Map<String, Object>> handleInvalidCurrentPassword(InvalidCurrentPasswordException ex) {
         return buildResponse(HttpStatus.BAD_REQUEST, ex.getMessage());
     }
 

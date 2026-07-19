@@ -39,7 +39,7 @@ public class ChatService {
 
         ChatMessage message = ChatMessage.builder()
                 .booking(booking)
-                .senderType(currentUser.getRole() == Role.ADMIN ? ChatSenderType.ADMIN : ChatSenderType.CUSTOMER)
+                .senderType(isStaff(currentUser) ? ChatSenderType.ADMIN : ChatSenderType.CUSTOMER)
                 .sender(currentUser)
                 .message(request.getMessage())
                 .build();
@@ -63,7 +63,7 @@ public class ChatService {
         User currentUser = currentUserService.getCurrentUser();
         getAccessibleBooking(bookingId);
 
-        ChatSenderType ownSenderType = currentUser.getRole() == Role.ADMIN
+        ChatSenderType ownSenderType = isStaff(currentUser)
                 ? ChatSenderType.ADMIN
                 : ChatSenderType.CUSTOMER;
 
@@ -104,11 +104,14 @@ public class ChatService {
                 .orElseThrow(() -> new ResourceNotFoundException("Booking", bookingId));
         User currentUser = currentUserService.getCurrentUser();
         boolean isOwner = booking.getUser().getId().equals(currentUser.getId());
-        boolean isAdmin = currentUser.getRole() == Role.ADMIN;
-        if (!isOwner && !isAdmin) {
+        if (!isOwner && !isStaff(currentUser)) {
             throw new BookingAccessDeniedException();
         }
         return booking;
+    }
+
+    private boolean isStaff(User user) {
+        return user.getRole() == Role.ADMIN || user.getRole() == Role.OWNER;
     }
 
     private ChatMessageResponse toResponse(ChatMessage message) {

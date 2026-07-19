@@ -1,6 +1,7 @@
 package com.bkkcarglass.backend.service;
 
 import com.bkkcarglass.backend.dto.ProductResponse;
+import com.bkkcarglass.backend.dto.StockUpdateRequest;
 import com.bkkcarglass.backend.entity.Product;
 import com.bkkcarglass.backend.repository.ProductRepository;
 import com.bkkcarglass.backend.repository.ServiceRepository;
@@ -15,6 +16,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -64,5 +66,18 @@ class ProductServiceTest {
         List<ProductResponse> result = productService.findAll(10L, false);
 
         assertEquals(1, result.size());
+    }
+
+    @Test
+    void updateStock_setsAbsoluteQuantity() {
+        when(productRepository.findById(1L)).thenReturn(java.util.Optional.of(activeProduct));
+        when(productRepository.save(any(Product.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        StockUpdateRequest request = new StockUpdateRequest();
+        request.setStockQuantity(15);
+
+        var response = productService.updateStock(1L, request);
+
+        assertEquals(15, response.getStockQuantity());
     }
 }

@@ -38,7 +38,7 @@ public class ChatController {
     }
 
     @GetMapping("/inbox")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'OWNER')")
     public ResponseEntity<List<ChatInboxItemResponse>> inbox() {
         return ResponseEntity.ok(chatService.inbox());
     }

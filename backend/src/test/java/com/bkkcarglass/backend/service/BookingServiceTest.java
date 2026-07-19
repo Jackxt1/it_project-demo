@@ -3,16 +3,21 @@ package com.bkkcarglass.backend.service;
 import com.bkkcarglass.backend.dto.AcceptQuoteRequest;
 import com.bkkcarglass.backend.dto.BookingRequest;
 import com.bkkcarglass.backend.dto.BookingResponse;
+import com.bkkcarglass.backend.dto.BookingStatusUpdateRequest;
+import com.bkkcarglass.backend.dto.BookingTechnicianAssignRequest;
 import com.bkkcarglass.backend.entity.BookingStatus;
 import com.bkkcarglass.backend.entity.Booking;
 import com.bkkcarglass.backend.entity.PaymentType;
 import com.bkkcarglass.backend.entity.Product;
 import com.bkkcarglass.backend.entity.ServiceEntity;
+import com.bkkcarglass.backend.entity.Technician;
 import com.bkkcarglass.backend.entity.User;
 import com.bkkcarglass.backend.entity.Vehicle;
 import com.bkkcarglass.backend.entity.VehicleType;
 import com.bkkcarglass.backend.exception.BookingAccessDeniedException;
 import com.bkkcarglass.backend.exception.BookingSlotFullException;
+import com.bkkcarglass.backend.exception.InvalidStatusTransitionException;
+import com.bkkcarglass.backend.exception.OutOfStockException;
 import com.bkkcarglass.backend.exception.QuoteNotAvailableException;
 import com.bkkcarglass.backend.exception.ResourceNotFoundException;
 import com.bkkcarglass.backend.repository.BookingRepository;
@@ -39,6 +44,7 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -52,6 +58,7 @@ class BookingServiceTest {
     @Mock VehicleRepository vehicleRepository;
     @Mock CurrentUserService currentUserService;
     @Mock NotificationService notificationService;
+    @Mock org.springframework.messaging.simp.SimpMessagingTemplate messagingTemplate;
 
     BookingService bookingService;
 
@@ -63,7 +70,7 @@ class BookingServiceTest {
         bookingService = new BookingService(
                 bookingRepository, historyRepository, serviceRepository,
                 productRepository, technicianRepository, vehicleRepository,
-                currentUserService, notificationService);
+                currentUserService, notificationService, messagingTemplate);
 
         customer = User.builder().id(1L).fullName("ลูกค้า ทดสอบ").build();
         washService = ServiceEntity.builder().id(10L).name("ล้างรถ").maxPerSlot(5).build();
@@ -230,5 +237,161 @@ class BookingServiceTest {
         request.setPaymentType(PaymentType.DEPOSIT);
 
         assertThrows(BookingAccessDeniedException.class, () -> bookingService.acceptQuote(50L, request));
+    }
+
+    @Test
+    void findMyTechnicianQueue_returnsOnlyAssignedBookings() {
+        User technicianUser = User.builder().id(7L).build();
+        when(currentUserService.getCurrentUser()).thenReturn(technicianUser);
+        Booking assigned = Booking.builder()
+                .id(60L).user(customer).service(washService)
+                .bookingDate(LocalDate.now().plusDays(1)).timeSlot("09:00")
+                .status(BookingStatus.CONFIRMED).build();
+        when(bookingRepository.findByTechnicianUserIdOrderByBookingDateAscTimeSlotAsc(7L))
+                .thenReturn(List.of(assigned));
+
+        List<BookingResponse> result = bookingService.findMyTechnicianQueue();
+
+        assertEquals(1, result.size());
+        assertEquals(60L, result.get(0).getId());
+    }
+
+    @Test
+    void updateStatusAsTechnician_rejectsBookingNotAssignedToCaller() {
+        Technician otherTechnicianOwner = Technician.builder().id(1L)
+                .user(User.builder().id(999L).build()).build();
+        Booking booking = Booking.builder()
+                .id(61L).user(customer).service(washService).technician(otherTechnicianOwner)
+                .bookingDate(LocalDate.now().plusDays(1)).timeSlot("09:00")
+                .status(BookingStatus.CONFIRMED).build();
+        when(bookingRepository.findById(61L)).thenReturn(Optional.of(booking));
+        when(currentUserService.getCurrentUser()).thenReturn(User.builder().id(7L).build());
+
+        BookingStatusUpdateRequest request = new BookingStatusUpdateRequest();
+        request.setStatus(BookingStatus.IN_PROGRESS);
+
+        assertThrows(BookingAccessDeniedException.class,
+                () -> bookingService.updateStatusAsTechnician(61L, request));
+    }
+
+    @Test
+    void updateStatusAsTechnician_rejectsDisallowedStatus() {
+        User technicianUser = User.builder().id(7L).build();
+        Technician technician = Technician.builder().id(1L).user(technicianUser).build();
+        Booking booking = Booking.builder()
+                .id(62L).user(customer).service(washService).technician(technician)
+                .bookingDate(LocalDate.now().plusDays(1)).timeSlot("09:00")
+                .status(BookingStatus.CONFIRMED).build();
+        when(bookingRepository.findById(62L)).thenReturn(Optional.of(booking));
+        when(currentUserService.getCurrentUser()).thenReturn(technicianUser);
+
+        BookingStatusUpdateRequest request = new BookingStatusUpdateRequest();
+        request.setStatus(BookingStatus.CANCELLED);
+
+        assertThrows(InvalidStatusTransitionException.class,
+                () -> bookingService.updateStatusAsTechnician(62L, request));
+    }
+
+    @Test
+    void updateStatusAsTechnician_allowsOwnBookingTransitionToInProgress() {
+        User technicianUser = User.builder().id(7L).build();
+        Technician technician = Technician.builder().id(1L).user(technicianUser).build();
+        Booking booking = Booking.builder()
+                .id(63L).user(customer).service(washService).technician(technician)
+                .bookingDate(LocalDate.now().plusDays(1)).timeSlot("09:00")
+                .status(BookingStatus.CONFIRMED).build();
+        when(bookingRepository.findById(63L)).thenReturn(Optional.of(booking));
+        when(currentUserService.getCurrentUser()).thenReturn(technicianUser);
+
+        BookingStatusUpdateRequest request = new BookingStatusUpdateRequest();
+        request.setStatus(BookingStatus.IN_PROGRESS);
+
+        BookingResponse response = bookingService.updateStatusAsTechnician(63L, request);
+
+        assertEquals(BookingStatus.IN_PROGRESS.name(), response.getStatus());
+    }
+
+    @Test
+    void assignTechnician_pushesToTechnicianQueueTopic() {
+        User technicianUser = User.builder().id(7L).build();
+        Technician technician = Technician.builder().id(1L).active(true).user(technicianUser).build();
+        Booking booking = Booking.builder()
+                .id(64L).user(customer).service(washService)
+                .bookingDate(LocalDate.now().plusDays(1)).timeSlot("09:00")
+                .status(BookingStatus.CONFIRMED).build();
+        when(bookingRepository.findById(64L)).thenReturn(Optional.of(booking));
+        when(technicianRepository.findById(1L)).thenReturn(Optional.of(technician));
+
+        BookingTechnicianAssignRequest request = new BookingTechnicianAssignRequest();
+        request.setTechnicianId(1L);
+
+        bookingService.assignTechnician(64L, request);
+
+        verify(messagingTemplate).convertAndSend(eq("/topic/technician/7/queue"), any(BookingResponse.class));
+    }
+
+    @Test
+    void create_decrementsStockWhenTracked() {
+        Product trackedProduct = Product.builder().id(8L).name("ฟิล์มพรีเมียม").active(true).stockQuantity(3).build();
+        lenient().when(bookingRepository.countByServiceIdAndBookingDateAndTimeSlotAndStatusNot(
+                anyLong(), any(LocalDate.class), anyString(), eq(BookingStatus.CANCELLED)))
+                .thenReturn(0L);
+        when(bookingRepository.existsByOrderCode(anyString())).thenReturn(false);
+        when(productRepository.findById(8L)).thenReturn(Optional.of(trackedProduct));
+
+        BookingRequest request = washRequest();
+        request.setProductId(8L);
+
+        bookingService.create(request);
+
+        assertEquals(2, trackedProduct.getStockQuantity());
+    }
+
+    @Test
+    void create_throwsOutOfStockWhenZero() {
+        Product outOfStock = Product.builder().id(9L).name("ฟิล์มพรีเมียม").active(true).stockQuantity(0).build();
+        lenient().when(bookingRepository.countByServiceIdAndBookingDateAndTimeSlotAndStatusNot(
+                anyLong(), any(LocalDate.class), anyString(), eq(BookingStatus.CANCELLED)))
+                .thenReturn(0L);
+        when(productRepository.findById(9L)).thenReturn(Optional.of(outOfStock));
+
+        BookingRequest request = washRequest();
+        request.setProductId(9L);
+
+        assertThrows(OutOfStockException.class, () -> bookingService.create(request));
+    }
+
+    @Test
+    void updateStatus_restoresStockOnCancel() {
+        Product trackedProduct = Product.builder().id(10L).name("ฟิล์มพรีเมียม").active(true).stockQuantity(1).build();
+        Booking booking = Booking.builder()
+                .id(70L).user(customer).service(washService).product(trackedProduct)
+                .bookingDate(LocalDate.now().plusDays(1)).timeSlot("09:00")
+                .status(BookingStatus.CONFIRMED).build();
+        when(bookingRepository.findById(70L)).thenReturn(Optional.of(booking));
+
+        BookingStatusUpdateRequest request = new BookingStatusUpdateRequest();
+        request.setStatus(BookingStatus.CANCELLED);
+
+        bookingService.updateStatus(70L, request);
+
+        assertEquals(2, trackedProduct.getStockQuantity());
+    }
+
+    @Test
+    void updateStatus_doesNotTouchStockWhenNotTracked() {
+        Product untrackedProduct = Product.builder().id(11L).name("ล้างธรรมดา").active(true).stockQuantity(null).build();
+        Booking booking = Booking.builder()
+                .id(71L).user(customer).service(washService).product(untrackedProduct)
+                .bookingDate(LocalDate.now().plusDays(1)).timeSlot("09:00")
+                .status(BookingStatus.CONFIRMED).build();
+        when(bookingRepository.findById(71L)).thenReturn(Optional.of(booking));
+
+        BookingStatusUpdateRequest request = new BookingStatusUpdateRequest();
+        request.setStatus(BookingStatus.CANCELLED);
+
+        bookingService.updateStatus(71L, request);
+
+        assertNull(untrackedProduct.getStockQuantity());
     }
 }

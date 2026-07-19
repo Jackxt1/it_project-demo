@@ -2,6 +2,7 @@ package com.bkkcarglass.backend.service;
 
 import com.bkkcarglass.backend.dto.ProductRequest;
 import com.bkkcarglass.backend.dto.ProductResponse;
+import com.bkkcarglass.backend.dto.StockUpdateRequest;
 import com.bkkcarglass.backend.entity.Product;
 import com.bkkcarglass.backend.entity.ServiceEntity;
 import com.bkkcarglass.backend.exception.ResourceNotFoundException;
@@ -82,6 +83,13 @@ public class ProductService {
         productRepository.delete(getEntity(id));
     }
 
+    @Transactional
+    public ProductResponse updateStock(Long id, StockUpdateRequest request) {
+        Product product = getEntity(id);
+        product.setStockQuantity(request.getStockQuantity());
+        return toResponse(productRepository.save(product));
+    }
+
     private ServiceEntity resolveService(Long serviceId) {
         if (serviceId == null) {
             return null;
@@ -111,6 +119,7 @@ public class ProductService {
                 .description(product.getDescription())
                 .imageUrl(product.getImageUrl())
                 .active(product.isActive())
+                .stockQuantity(product.getStockQuantity())
                 .createdAt(product.getCreatedAt())
                 .updatedAt(product.getUpdatedAt())
                 .build();

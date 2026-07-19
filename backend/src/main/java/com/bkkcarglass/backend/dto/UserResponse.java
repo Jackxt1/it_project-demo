@@ -4,18 +4,14 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 
-import java.time.LocalDateTime;
-
 @Getter
 @Builder
 @AllArgsConstructor
-public class TechnicianResponse {
+public class UserResponse {
     private Long id;
-    private Long userId;
     private String fullName;
-    private String phone;
     private String email;
-    private boolean active;
-    private LocalDateTime createdAt;
-    private LocalDateTime updatedAt;
+    private String phone;
+    private String profileImageUrl;
+    private String role;
 }

@@ -24,6 +24,7 @@ public class ProductResponse {
     private String description;
     private String imageUrl;
     private boolean active;
+    private Integer stockQuantity;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 }

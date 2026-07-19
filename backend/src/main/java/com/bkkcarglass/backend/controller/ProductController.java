@@ -2,6 +2,7 @@ package com.bkkcarglass.backend.controller;
 
 import com.bkkcarglass.backend.dto.ProductRequest;
 import com.bkkcarglass.backend.dto.ProductResponse;
+import com.bkkcarglass.backend.dto.StockUpdateRequest;
 import com.bkkcarglass.backend.service.ProductService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -29,8 +30,11 @@ public class ProductController {
 
     private boolean isAdmin() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        return auth != null && auth.getAuthorities().stream()
-                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
+        if (auth == null) {
+            return false;
+        }
+        return auth.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN") || a.getAuthority().equals("ROLE_OWNER"));
     }
 
     @GetMapping("/{id}")
@@ -52,5 +56,11 @@ public class ProductController {
     public ResponseEntity<Void> delete(@PathVariable Long id) {
         productService.delete(id);
         return ResponseEntity.noContent().build();
+    }
+
+    @PutMapping("/{id}/stock")
+    public ResponseEntity<ProductResponse> updateStock(
+            @PathVariable Long id, @Valid @RequestBody StockUpdateRequest request) {
+        return ResponseEntity.ok(productService.updateStock(id, request));
     }
 }
