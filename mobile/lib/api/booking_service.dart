@@ -53,6 +53,31 @@ class BookingService {
     return Booking.fromJson(data as Map<String, dynamic>);
   }
 
+  /// `GET /api/bookings/me` → list of `BookingResponse`, newest first (the
+  /// backend already returns them sorted, so this is just a straight
+  /// deserialize with no re-sorting on the client side).
+  Future<List<Booking>> fetchMine() async {
+    final data = await ApiClient.instance.get('/api/bookings/me');
+    return (data as List<dynamic>)
+        .map((e) => Booking.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
+  /// `GET /api/bookings/{id}` → `BookingResponse`.
+  Future<Booking> fetchById(int id) async {
+    final data = await ApiClient.instance.get('/api/bookings/$id');
+    return Booking.fromJson(data as Map<String, dynamic>);
+  }
+
+  /// `PUT /api/bookings/{id}/accept-quote` body `{paymentType}` →
+  /// `BookingResponse`. `paymentType` is `DEPOSIT` or `FULL`.
+  Future<Booking> acceptQuote(int id, String paymentType) async {
+    final data = await ApiClient.instance.put('/api/bookings/$id/accept-quote', {
+      'paymentType': paymentType,
+    });
+    return Booking.fromJson(data as Map<String, dynamic>);
+  }
+
   /// `date` as `YYYY-MM-DD`, independent of locale (the backend expects a
   /// plain ISO calendar date, not a locale-formatted string).
   String _formatDate(DateTime date) {

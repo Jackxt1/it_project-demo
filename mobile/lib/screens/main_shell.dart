@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../models/service_item.dart';
 import '../theme/app_theme.dart';
 import 'booking/booking_flow.dart';
+import 'bookings/bookings_screen.dart';
 import 'home/home_screen.dart';
 
 class MainShell extends StatefulWidget {
@@ -10,11 +11,7 @@ class MainShell extends StatefulWidget {
 
   final List<Widget>? pages;
 
-  static const List<String> _placeholderTabLabels = [
-    'การจอง',
-    'แจ้งเตือน',
-    'โปรไฟล์',
-  ];
+  static const List<String> _placeholderTabLabels = ['แจ้งเตือน', 'โปรไฟล์'];
 
   @override
   State<MainShell> createState() => _MainShellState();
@@ -41,6 +38,7 @@ class _MainShellState extends State<MainShell> {
       onBookService: _handleBookService,
       onTrackStatus: () => setState(() => _currentIndex = 1),
     ),
+    const BookingsScreen(),
     ...MainShell._placeholderTabLabels.map(
       (label) => Center(child: Text(label)),
     ),

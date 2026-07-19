@@ -33,6 +33,12 @@ const Map<String, String> _bookingStatusLabels = {
   'CANCELLED': 'ยกเลิก',
 };
 
+/// Thai label for a raw booking status code (`PENDING`, `CONFIRMED`, ...).
+/// Shared by [Booking.statusLabel] and by callers rendering
+/// [BookingStatusHistoryEntry.status], which carries the same status codes.
+String bookingStatusLabel(String status) =>
+    _bookingStatusLabels[status] ?? status;
+
 /// Matches the backend `BookingResponse` contract exactly.
 class Booking {
   Booking({
@@ -87,7 +93,7 @@ class Booking {
   final String? notes;
   final List<BookingStatusHistoryEntry> statusHistory;
 
-  String get statusLabel => _bookingStatusLabels[status] ?? status;
+  String get statusLabel => bookingStatusLabel(status);
 
   factory Booking.fromJson(Map<String, dynamic> json) => Booking(
         id: (json['id'] as num).toInt(),
