@@ -4,6 +4,7 @@ import '../../api/api_client.dart';
 import '../../api/catalog_service.dart';
 import '../../models/booking.dart';
 import '../../models/booking_draft.dart';
+import '../../models/product.dart';
 import '../../models/service_item.dart';
 import '../../theme/app_theme.dart';
 import 'step1_vehicle.dart';
@@ -26,17 +27,24 @@ const List<String> _stepTitles = [
 /// When [initialService] is null (generic entry via "จองบริการ", the center
 /// FAB, or the banner), a simple service-picker is shown first ("step 0")
 /// before step 1.
+///
+/// [initialProduct] preselects step 2's product/package (used by the Task 9
+/// chatbot's "จองตัวนี้" button after a recommendation) — ignored when
+/// [initialService] is null, since there's no service yet for it to belong
+/// to.
 class BookingFlowScreen extends StatefulWidget {
-  const BookingFlowScreen({super.key, this.initialService});
+  const BookingFlowScreen({super.key, this.initialService, this.initialProduct});
 
   final ServiceItem? initialService;
+  final Product? initialProduct;
 
   @override
   State<BookingFlowScreen> createState() => _BookingFlowScreenState();
 }
 
 class _BookingFlowScreenState extends State<BookingFlowScreen> {
-  late final BookingDraft _draft = BookingDraft(service: widget.initialService);
+  late final BookingDraft _draft = BookingDraft(service: widget.initialService)
+    ..product = widget.initialService != null ? widget.initialProduct : null;
   late bool _pickingService = widget.initialService == null;
   int _step = 1;
 

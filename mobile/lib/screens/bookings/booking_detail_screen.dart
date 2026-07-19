@@ -6,6 +6,7 @@ import '../../api/api_client.dart';
 import '../../api/booking_service.dart';
 import '../../models/booking.dart';
 import '../../theme/app_theme.dart';
+import '../chat/booking_chat_screen.dart';
 
 final NumberFormat _priceFormat = NumberFormat('#,###');
 
@@ -95,10 +96,11 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
   }
 
   void _contactStaff() {
-    // Task 9 wires this up to the real chat screen.
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(const SnackBar(content: Text('เร็วๆ นี้')));
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => BookingChatScreen(bookingId: widget.bookingId),
+      ),
+    );
   }
 
   @override

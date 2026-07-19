@@ -7,6 +7,7 @@ import '../../api/catalog_service.dart';
 import '../../models/product.dart';
 import '../../models/service_item.dart';
 import '../../theme/app_theme.dart';
+import '../chat/chatbot_screen.dart';
 
 const String _comingSoonMessage = 'เร็วๆ นี้';
 
@@ -100,6 +101,12 @@ class _HomeScreenState extends State<HomeScreen> {
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(const SnackBar(content: Text(_comingSoonMessage)));
+  }
+
+  void _openChatbot() {
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const ChatbotScreen()),
+    );
   }
 
   /// จับคู่คีย์เวิร์ดของการ์ด "บริการด่วน" (เช่น "ฟิล์ม") กับบริการจริงจาก
@@ -243,7 +250,7 @@ class _HomeScreenState extends State<HomeScreen> {
             heroTag: 'home_chat_fab',
             backgroundColor: AppColors.primary,
             shape: const CircleBorder(),
-            onPressed: _showComingSoon,
+            onPressed: _openChatbot,
             child: const Icon(Icons.chat_bubble_outline, color: Colors.white),
           ),
         ),
