@@ -7,7 +7,7 @@ import 'package:http/testing.dart';
 
 import 'package:bkk_customer/api/api_client.dart';
 import 'package:bkk_customer/api/vehicle_service.dart';
-import 'package:bkk_customer/screens/booking/booking_flow.dart';
+import 'package:bkk_customer/models/booking_draft.dart';
 import 'package:bkk_customer/screens/booking/step1_vehicle.dart';
 import 'package:bkk_customer/theme/app_theme.dart';
 

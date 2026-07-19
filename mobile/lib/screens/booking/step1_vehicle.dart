@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 
 import '../../api/api_client.dart';
 import '../../api/vehicle_service.dart';
+import '../../models/booking_draft.dart';
 import '../../models/vehicle.dart';
 import '../../theme/app_theme.dart';
-import 'booking_flow.dart';
 
 class _VehicleTypeOption {
   const _VehicleTypeOption(this.label, this.value);

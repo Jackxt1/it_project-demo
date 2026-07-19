@@ -3,59 +3,14 @@ import 'package:flutter/material.dart';
 import '../../api/api_client.dart';
 import '../../api/catalog_service.dart';
 import '../../models/booking.dart';
-import '../../models/product.dart';
+import '../../models/booking_draft.dart';
 import '../../models/service_item.dart';
-import '../../models/vehicle.dart';
 import '../../theme/app_theme.dart';
 import 'step1_vehicle.dart';
 import 'step2_product.dart';
 import 'step3_schedule.dart';
 import 'step4_payment.dart';
 import 'step5_success.dart';
-
-/// Mutable holder for everything collected across the 5-step booking flow.
-/// Passed down to every step widget so each one can read/write its slice
-/// without the flow screen needing per-field callbacks.
-class BookingDraft {
-  BookingDraft({this.service});
-
-  ServiceItem? service;
-  Vehicle? vehicle;
-  Product? product;
-  String? installArea;
-  String? imageUrl;
-  double? budget;
-  DateTime? date;
-  String? timeSlot;
-  String paymentType = 'DEPOSIT';
-
-  /// Amount chosen on step 4 (deposit or full). Left null for the repair
-  /// flow (which skips step 4 entirely), so [BookingService.createBooking]
-  /// knows to omit `paymentType`/`paidAmount` from the request body.
-  double? paidAmount;
-}
-
-/// The three booking "modes" derived from the selected service's name —
-/// mirrors the private detection already duplicated inside step2/step3, but
-/// exposed here so step3 (repair short-circuit), step4/step5 (film/wash
-/// payment + summary) and this flow's own routing all agree on it.
-enum BookingMode { film, wash, repair }
-
-BookingMode bookingModeFor(ServiceItem? service) {
-  final name = service?.name ?? '';
-  if (name.contains('ฟิล์ม')) return BookingMode.film;
-  if (name.contains('ล้าง')) return BookingMode.wash;
-  return BookingMode.repair;
-}
-
-/// Product/package price plus the service's install fee (its `basePrice`,
-/// when set), used by step4's cost breakdown and step5's paid/remaining
-/// summary so both agree on the same total.
-double bookingTotalAmount(BookingDraft draft) {
-  final productPrice = draft.product?.price ?? 0;
-  final basePrice = draft.service?.basePrice ?? 0;
-  return productPrice + (basePrice > 0 ? basePrice : 0);
-}
 
 const List<String> _stepTitles = [
   'เลือกรถ',

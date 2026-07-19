@@ -3,9 +3,9 @@ import 'package:image_picker/image_picker.dart';
 
 import '../../api/api_client.dart';
 import '../../api/catalog_service.dart';
+import '../../models/booking_draft.dart';
 import '../../models/product.dart';
 import '../../theme/app_theme.dart';
-import 'booking_flow.dart';
 
 enum _BookingMode { film, wash, repair }
 

@@ -1,6 +1,6 @@
 import '../models/booking.dart';
+import '../models/booking_draft.dart';
 import '../models/slot.dart';
-import '../screens/booking/booking_flow.dart' show BookingDraft;
 import 'api_client.dart';
 
 /// Fetches slot availability and (later) creates bookings against the

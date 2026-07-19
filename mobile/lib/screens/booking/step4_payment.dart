@@ -5,8 +5,8 @@ import 'package:intl/intl.dart';
 import '../../api/api_client.dart';
 import '../../api/booking_service.dart';
 import '../../models/booking.dart';
+import '../../models/booking_draft.dart';
 import '../../theme/app_theme.dart';
-import 'booking_flow.dart';
 
 final NumberFormat _priceFormat = NumberFormat('#,###');
 

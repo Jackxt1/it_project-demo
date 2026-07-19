@@ -3,8 +3,8 @@ import 'package:intl/date_symbol_data_local.dart';
 import 'package:intl/intl.dart';
 
 import '../../models/booking.dart';
+import '../../models/booking_draft.dart';
 import '../../theme/app_theme.dart';
-import 'booking_flow.dart';
 
 final NumberFormat _priceFormat = NumberFormat('#,###');
 
