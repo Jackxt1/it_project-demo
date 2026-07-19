@@ -38,20 +38,20 @@ public class BookingController {
     }
 
     @GetMapping
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'OWNER')")
     public ResponseEntity<List<BookingResponse>> findAll() {
         return ResponseEntity.ok(bookingService.findAll());
     }
 
     @PutMapping("/{id}/status")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'OWNER')")
     public ResponseEntity<BookingResponse> updateStatus(
             @PathVariable Long id, @Valid @RequestBody BookingStatusUpdateRequest request) {
         return ResponseEntity.ok(bookingService.updateStatus(id, request));
     }
 
     @PatchMapping("/{id}/technician")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'OWNER')")
     public ResponseEntity<BookingResponse> assignTechnician(
             @PathVariable Long id, @Valid @RequestBody BookingTechnicianAssignRequest request) {
         return ResponseEntity.ok(bookingService.assignTechnician(id, request));
