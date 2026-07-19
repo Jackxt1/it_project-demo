@@ -1,17 +1,18 @@
 import 'package:flutter/material.dart';
 
+import '../api/notification_service.dart';
 import '../models/service_item.dart';
 import '../theme/app_theme.dart';
 import 'booking/booking_flow.dart';
 import 'bookings/bookings_screen.dart';
 import 'home/home_screen.dart';
+import 'notifications/notifications_screen.dart';
+import 'profile/profile_screen.dart';
 
 class MainShell extends StatefulWidget {
   const MainShell({super.key, this.pages});
 
   final List<Widget>? pages;
-
-  static const List<String> _placeholderTabLabels = ['แจ้งเตือน', 'โปรไฟล์'];
 
   @override
   State<MainShell> createState() => _MainShellState();
@@ -19,6 +20,33 @@ class MainShell extends StatefulWidget {
 
 class _MainShellState extends State<MainShell> {
   int _currentIndex = 0;
+  int _unreadNotificationCount = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUnreadNotificationCount();
+  }
+
+  /// Best-effort initial fetch just to seed the bottom-nav badge; the count
+  /// then stays in sync via [_onUnreadCountChanged], which
+  /// [NotificationsScreen] calls after every load/mark-read/mark-all-read.
+  Future<void> _loadUnreadNotificationCount() async {
+    try {
+      final items = await NotificationService.instance.fetchMine();
+      if (!mounted) return;
+      setState(
+        () => _unreadNotificationCount = items.where((n) => !n.isRead).length,
+      );
+    } catch (_) {
+      // A failed badge fetch isn't worth surfacing an error for.
+    }
+  }
+
+  void _onUnreadCountChanged(int count) {
+    if (!mounted) return;
+    setState(() => _unreadNotificationCount = count);
+  }
 
   Future<void> _handleBookService(ServiceItem? service) async {
     final result = await Navigator.of(context).push<String>(
@@ -33,15 +61,16 @@ class _MainShellState extends State<MainShell> {
     }
   }
 
+  void _goToBookingsTab() => setState(() => _currentIndex = 1);
+
   List<Widget> _defaultPages() => [
     HomeScreen(
       onBookService: _handleBookService,
-      onTrackStatus: () => setState(() => _currentIndex = 1),
+      onTrackStatus: _goToBookingsTab,
     ),
     const BookingsScreen(),
-    ...MainShell._placeholderTabLabels.map(
-      (label) => Center(child: Text(label)),
-    ),
+    NotificationsScreen(onUnreadCountChanged: _onUnreadCountChanged),
+    ProfileScreen(onViewBookingHistory: _goToBookingsTab),
   ];
 
   @override
@@ -63,14 +92,27 @@ class _MainShellState extends State<MainShell> {
         selectedItemColor: AppColors.primary,
         unselectedItemColor: Colors.black54,
         type: BottomNavigationBarType.fixed,
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'หน้าแรก'),
-          BottomNavigationBarItem(icon: Icon(Icons.search), label: 'การจอง'),
+        items: [
+          const BottomNavigationBarItem(
+            icon: Icon(Icons.home),
+            label: 'หน้าแรก',
+          ),
+          const BottomNavigationBarItem(
+            icon: Icon(Icons.search),
+            label: 'การจอง',
+          ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.notifications),
+            icon: Badge(
+              label: Text('$_unreadNotificationCount'),
+              isLabelVisible: _unreadNotificationCount > 0,
+              child: const Icon(Icons.notifications),
+            ),
             label: 'แจ้งเตือน',
           ),
-          BottomNavigationBarItem(icon: Icon(Icons.person), label: 'โปรไฟล์'),
+          const BottomNavigationBarItem(
+            icon: Icon(Icons.person),
+            label: 'โปรไฟล์',
+          ),
         ],
       ),
     );

@@ -5,19 +5,7 @@ import '../../api/vehicle_service.dart';
 import '../../models/booking_draft.dart';
 import '../../models/vehicle.dart';
 import '../../theme/app_theme.dart';
-
-class _VehicleTypeOption {
-  const _VehicleTypeOption(this.label, this.value);
-  final String label;
-  final String value;
-}
-
-const List<_VehicleTypeOption> _vehicleTypeOptions = [
-  _VehicleTypeOption('เก๋ง', 'SEDAN'),
-  _VehicleTypeOption('กระบะ', 'PICKUP'),
-  _VehicleTypeOption('SUV', 'SUV'),
-  _VehicleTypeOption('อื่นๆ', 'OTHER'),
-];
+import '../../widgets/vehicle_form.dart';
 
 /// Step 1/5 ของ booking flow (Figma pages 8-9): เลือกรถที่บันทึกไว้ หรือ
 /// กรอกฟอร์มเพิ่มรถใหม่แล้วบันทึก.
@@ -50,10 +38,7 @@ class _Step1VehicleState extends State<Step1Vehicle> {
   String? _loadError;
 
   Vehicle? _selected;
-  String _vehicleType = 'SEDAN';
-  final _brandModelController = TextEditingController();
-  final _yearController = TextEditingController();
-  final _licensePlateController = TextEditingController();
+  final _formController = VehicleFormController();
 
   bool _saving = false;
   String? _saveError;
@@ -67,9 +52,7 @@ class _Step1VehicleState extends State<Step1Vehicle> {
 
   @override
   void dispose() {
-    _brandModelController.dispose();
-    _yearController.dispose();
-    _licensePlateController.dispose();
+    _formController.dispose();
     super.dispose();
   }
 
@@ -103,9 +86,7 @@ class _Step1VehicleState extends State<Step1Vehicle> {
     }
   }
 
-  bool get _formValid =>
-      _brandModelController.text.trim().isNotEmpty &&
-      _licensePlateController.text.trim().isNotEmpty;
+  bool get _formValid => _formController.isValid;
 
   void _selectVehicle(Vehicle vehicle) {
     setState(() => _selected = vehicle);
@@ -135,12 +116,7 @@ class _Step1VehicleState extends State<Step1Vehicle> {
     });
     try {
       final created = await VehicleService.instance.create(
-        Vehicle(
-          vehicleType: _vehicleType,
-          brandModel: _brandModelController.text.trim(),
-          year: int.tryParse(_yearController.text.trim()),
-          licensePlate: _licensePlateController.text.trim(),
-        ),
+        _formController.toVehicle(),
       );
       if (!mounted) return;
       widget.draft.vehicle = created;
@@ -241,59 +217,10 @@ class _Step1VehicleState extends State<Step1Vehicle> {
   }
 
   Widget _buildForm() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text('ประเภทรถ'),
-        const SizedBox(height: 8),
-        Wrap(
-          spacing: 8,
-          children: _vehicleTypeOptions.map((opt) {
-            final selected = _vehicleType == opt.value;
-            return ChoiceChip(
-              label: Text(opt.label),
-              selected: selected,
-              selectedColor: AppColors.surfaceLight,
-              onSelected: (_) => setState(() => _vehicleType = opt.value),
-            );
-          }).toList(),
-        ),
-        const SizedBox(height: 16),
-        const Text('ยี่ห้อและรุ่น'),
-        const SizedBox(height: 8),
-        TextField(
-          controller: _brandModelController,
-          decoration: const InputDecoration(
-            hintText: 'เช่น Honda Civic',
-            border: OutlineInputBorder(),
-          ),
-          onChanged: (_) => _onFormFieldChanged(),
-        ),
-        const SizedBox(height: 16),
-        const Text('ปีรถ'),
-        const SizedBox(height: 8),
-        TextField(
-          controller: _yearController,
-          keyboardType: TextInputType.number,
-          decoration: const InputDecoration(border: OutlineInputBorder()),
-          onChanged: (_) => _onFormFieldChanged(),
-        ),
-        const SizedBox(height: 16),
-        const Text('ทะเบียนรถ'),
-        const SizedBox(height: 8),
-        TextField(
-          controller: _licensePlateController,
-          decoration: const InputDecoration(
-            hintText: 'ตด 8888',
-            border: OutlineInputBorder(),
-          ),
-          onChanged: (_) => _onFormFieldChanged(),
-        ),
-        if (_saveError != null) ...[
-          const SizedBox(height: 8),
-          Text(_saveError!, style: const TextStyle(color: Colors.red)),
-        ],
-      ],
+    return VehicleFormFields(
+      controller: _formController,
+      onChanged: _onFormFieldChanged,
+      errorText: _saveError,
     );
   }
 
