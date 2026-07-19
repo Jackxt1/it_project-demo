@@ -22,6 +22,10 @@ public class Technician {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @OneToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id", unique = true)
+    private User user;
+
     @Column(name = "full_name", nullable = false, length = 150)
     private String fullName;
 

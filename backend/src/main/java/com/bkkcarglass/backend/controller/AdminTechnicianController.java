@@ -1,5 +1,6 @@
 package com.bkkcarglass.backend.controller;
 
+import com.bkkcarglass.backend.dto.TechnicianAccountRequest;
 import com.bkkcarglass.backend.dto.TechnicianRequest;
 import com.bkkcarglass.backend.dto.TechnicianResponse;
 import com.bkkcarglass.backend.service.TechnicianService;
@@ -21,7 +22,7 @@ public class AdminTechnicianController {
     private final TechnicianService technicianService;
 
     @PostMapping
-    public ResponseEntity<TechnicianResponse> create(@Valid @RequestBody TechnicianRequest request) {
+    public ResponseEntity<TechnicianResponse> create(@Valid @RequestBody TechnicianAccountRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED).body(technicianService.create(request));
     }
 

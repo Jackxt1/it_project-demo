@@ -205,3 +205,10 @@ SELECT s.id, 'ล้าง + ขัดเคลือบสีเต็มระ
 FROM services s
 WHERE s.name = 'ล้างรถ'
   AND NOT EXISTS (SELECT 1 FROM products WHERE name = 'ล้าง + ขัดเคลือบสีเต็มระบบ')@@
+
+-- Phase 3: OWNER/TECHNICIAN roles, technician login link
+ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check@@
+ALTER TABLE users ADD CONSTRAINT users_role_check
+    CHECK (role IN ('CUSTOMER', 'ADMIN', 'OWNER', 'TECHNICIAN'))@@
+
+ALTER TABLE technicians ADD COLUMN IF NOT EXISTS user_id BIGINT UNIQUE REFERENCES users (id)@@@@
