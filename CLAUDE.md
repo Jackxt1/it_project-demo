@@ -56,6 +56,19 @@ booking ผูกรถ/install_area/order_code/มัดจำ (payment_type, p
 (services.max_per_slot แทน BOOKING_MAX_PER_SLOT เดิม), GET /api/services/{id}/slots ดูคิวว่าง,
 products.is_active, accept-quote flow สำหรับงานซ่อมกระจก, seed บริการล้างรถ + 3 แพ็กเกจใน schema.sql
 
+## Customer App Status (mobile/)
+แอปลูกค้า Flutter (`mobile/`, package `bkk_customer`, platforms android+web) เฟส 2 เสร็จแล้ว:
+splash → auth (login/สมัคร, JWT เก็บใน SharedPreferences), หน้าแรก (บริการด่วน/บริการยอดนิยม/ค้นหา),
+flow จอง 5 ขั้น รองรับ 3 ประเภทงาน (ฟิล์ม: เลือกพื้นที่+ฟิล์ม / ล้างรถ: เลือกแพ็กเกจ / ซ่อมกระจก:
+รูป+งบ ข้ามชำระเงิน รอ quote), นัดเวลาเห็นคิวว่างจริงจาก slots endpoint, ชำระมัดจำ 30%/เต็ม (mock),
+หน้าสำเร็จ+orderCode, แท็บการจอง+ติดตามสถานะ (timeline + ยืนยันใบเสนอราคาในแอป), แจ้งเตือน (badge,
+read/read-all), โปรไฟล์+รถของฉัน (CRUD, ฟอร์มแชร์กับ flow จอง), แชทบอทแนะนำสินค้า + แชทเจ้าหน้าที่
+(STOMP ผ่าน /ws/websocket topic /topic/chat/{bookingId}, fallback polling 5s)
+- เทส: widget/unit 33 ตัว (รันด้วย `flutter test --concurrency=1` — bare `flutter test` flaky บนเครื่องนี้)
+- ตรวจ integration กับ backend จริงแล้ว 24/24 (จองล้าง+มัดจำ, quote flow ครบวงจร, แชท, chatbot fallback)
+- API base URL ตั้งผ่าน `--dart-define=API_BASE_URL` (default http://localhost:8080) (Android emulator ใช้ http://10.0.2.2:8080)
+- ยังไม่ทำ: Google Sign-In, ลืมรหัสผ่าน, ชำระเงินจริง (เฟส 4), แอปช่าง (เฟส 3)
+
 ## Environment Variables (ต้องใส่ค่าจริงก่อน deploy)
 - `DB_URL`, `DB_USERNAME`, `DB_PASSWORD` — PostgreSQL connection จริง
 - `JWT_SECRET` — ต้องเปลี่ยนจาก placeholder ห้ามใช้ตอน production
