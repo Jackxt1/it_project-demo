@@ -9,6 +9,7 @@ import 'package:bkk_customer/api/api_client.dart';
 import 'package:bkk_customer/api/booking_service.dart';
 import 'package:bkk_customer/screens/bookings/booking_detail_screen.dart';
 import 'package:bkk_customer/screens/bookings/bookings_screen.dart';
+import 'package:bkk_customer/screens/main_shell.dart';
 import 'package:bkk_customer/theme/app_theme.dart';
 
 /// `http.Response`'s default encoding is Latin-1, which mangles Thai text,
@@ -128,6 +129,108 @@ void main() {
 
       expect(find.text('ยังไม่มีการจอง'), findsOneWidget);
     });
+
+    testWidgets(
+      'reload() re-fetches /api/bookings/me and renders a booking that was '
+      'added after the first load',
+      (WidgetTester tester) async {
+        var requestCount = 0;
+        ApiClient.instance = ApiClient(
+          httpClient: MockClient((request) async {
+            if (request.method == 'GET' &&
+                request.url.path == '/api/bookings/me') {
+              requestCount++;
+              if (requestCount == 1) {
+                return _jsonResponse([
+                  _bookingJson(id: 1, status: 'PENDING', orderCode: 'BK-0001'),
+                ]);
+              }
+              // Simulates a booking that completed elsewhere (e.g. the
+              // booking flow) between the initial load and the reload.
+              return _jsonResponse([
+                _bookingJson(id: 1, status: 'PENDING', orderCode: 'BK-0001'),
+                _bookingJson(id: 2, status: 'COMPLETED', orderCode: 'BK-0002'),
+              ]);
+            }
+            return http.Response('Not found', 404);
+          }),
+        );
+
+        final key = GlobalKey<BookingsScreenState>();
+        await tester.pumpWidget(_wrap(BookingsScreen(key: key)));
+        await tester.pumpAndSettle();
+
+        expect(requestCount, 1);
+        expect(find.textContaining('BK-0001'), findsOneWidget);
+        expect(find.textContaining('BK-0002'), findsNothing);
+
+        await key.currentState!.reload();
+        await tester.pumpAndSettle();
+
+        expect(requestCount, 2);
+        expect(find.textContaining('BK-0001'), findsOneWidget);
+        expect(find.textContaining('BK-0002'), findsOneWidget);
+      },
+    );
+  });
+
+  group('MainShell bookings tab refresh (Task 10 final-review fix)', () {
+    testWidgets(
+      'switching from another tab to the bookings tab re-fetches '
+      '/api/bookings/me and shows a booking added after the first load',
+      (WidgetTester tester) async {
+        var bookingsRequestCount = 0;
+        ApiClient.instance = ApiClient(
+          httpClient: MockClient((request) async {
+            if (request.method == 'GET' &&
+                request.url.path == '/api/bookings/me') {
+              bookingsRequestCount++;
+              if (bookingsRequestCount == 1) {
+                return _jsonResponse([
+                  _bookingJson(id: 1, status: 'PENDING', orderCode: 'BK-0001'),
+                ]);
+              }
+              return _jsonResponse([
+                _bookingJson(id: 1, status: 'PENDING', orderCode: 'BK-0001'),
+                _bookingJson(id: 2, status: 'COMPLETED', orderCode: 'BK-0002'),
+              ]);
+            }
+            // MainShell's other default pages (Home, Notifications) fetch
+            // their own data on mount because IndexedStack builds every
+            // page eagerly; empty lists keep them out of the way here.
+            if (request.method == 'GET' &&
+                (request.url.path == '/api/services' ||
+                    request.url.path == '/api/products' ||
+                    request.url.path == '/api/notifications/me')) {
+              return _jsonResponse([]);
+            }
+            return http.Response('Not found', 404);
+          }),
+        );
+
+        await tester.pumpWidget(
+          MaterialApp(theme: AppTheme.light, home: const MainShell()),
+        );
+        await tester.pumpAndSettle();
+
+        expect(bookingsRequestCount, 1);
+
+        // Tap the "การจอง" bottom-nav item to switch to the bookings tab.
+        await tester.tap(find.text('การจอง'));
+        await tester.pumpAndSettle();
+
+        expect(
+          bookingsRequestCount,
+          2,
+          reason:
+              'IndexedStack keeps BookingsScreen mounted across tab '
+              'switches, so switching to it must trigger an explicit '
+              'reload rather than relying on initState (which only runs '
+              'once).',
+        );
+        expect(find.textContaining('BK-0002'), findsOneWidget);
+      },
+    );
   });
 
   group('BookingDetailScreen', () {

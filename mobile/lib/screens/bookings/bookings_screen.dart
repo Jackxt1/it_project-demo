@@ -26,10 +26,14 @@ class BookingsScreen extends StatefulWidget {
   const BookingsScreen({super.key});
 
   @override
-  State<BookingsScreen> createState() => _BookingsScreenState();
+  State<BookingsScreen> createState() => BookingsScreenState();
 }
 
-class _BookingsScreenState extends State<BookingsScreen> {
+/// Public so [MainShell] can hold a `GlobalKey<BookingsScreenState>` and call
+/// [reload] whenever the bookings tab is switched to — the tab body lives
+/// inside an [IndexedStack], so this [State] is never disposed/recreated by
+/// tab switches alone and would otherwise show a stale list (Task 10 fix).
+class BookingsScreenState extends State<BookingsScreen> {
   List<Booking>? _bookings;
   String? _error;
 
@@ -53,6 +57,12 @@ class _BookingsScreenState extends State<BookingsScreen> {
       setState(() => _error = 'โหลดข้อมูลไม่สำเร็จ');
     }
   }
+
+  /// Re-fetches the bookings list. Exposed so [MainShell] can trigger a
+  /// refresh via a [GlobalKey] whenever the user switches to this tab,
+  /// since [IndexedStack] keeps this screen's state alive across switches
+  /// (so [initState]'s one-time fetch alone would go stale).
+  Future<void> reload() => _load();
 
   Future<void> _openDetail(Booking booking) async {
     await Navigator.of(context).push(

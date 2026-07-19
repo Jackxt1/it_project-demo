@@ -66,7 +66,7 @@ read/read-all), โปรไฟล์+รถของฉัน (CRUD, ฟอร�
 (STOMP ผ่าน /ws/websocket topic /topic/chat/{bookingId}, fallback polling 5s)
 - เทส: widget/unit 33 ตัว (รันด้วย `flutter test --concurrency=1` — bare `flutter test` flaky บนเครื่องนี้)
 - ตรวจ integration กับ backend จริงแล้ว 24/24 (จองล้าง+มัดจำ, quote flow ครบวงจร, แชท, chatbot fallback)
-- API base URL ตั้งผ่าน `--dart-define=API_BASE_URL` (default http://localhost:8080)
+- API base URL ตั้งผ่าน `--dart-define=API_BASE_URL` (default http://localhost:8080) (Android emulator ใช้ http://10.0.2.2:8080)
 - ยังไม่ทำ: Google Sign-In, ลืมรหัสผ่าน, ชำระเงินจริง (เฟส 4), แอปช่าง (เฟส 3)
 
 ## Environment Variables (ต้องใส่ค่าจริงก่อน deploy)

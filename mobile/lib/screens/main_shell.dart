@@ -21,6 +21,8 @@ class MainShell extends StatefulWidget {
 class _MainShellState extends State<MainShell> {
   int _currentIndex = 0;
   int _unreadNotificationCount = 0;
+  final GlobalKey<BookingsScreenState> _bookingsKey =
+      GlobalKey<BookingsScreenState>();
 
   @override
   void initState() {
@@ -57,18 +59,34 @@ class _MainShellState extends State<MainShell> {
     // Step 5's "ไปยังหน้าติดตามสถานะ" button pops the flow with 'bookings'
     // so we can switch straight to the bookings tab.
     if (result == 'bookings' && mounted) {
-      setState(() => _currentIndex = 1);
+      _switchToTab(1);
     }
   }
 
-  void _goToBookingsTab() => setState(() => _currentIndex = 1);
+  void _goToBookingsTab() => _switchToTab(1);
+
+  /// Switches the visible tab and, when landing on the bookings tab,
+  /// refreshes its list. [BookingsScreen] lives inside an [IndexedStack] so
+  /// switching tabs alone doesn't re-run [initState]'s one-time fetch — a
+  /// booking created or updated elsewhere (e.g. the booking flow, or a
+  /// status change viewed in the detail screen) would otherwise stay stale
+  /// until a manual pull-to-refresh. Only called from explicit tab-switch
+  /// entry points (bottom-nav tap, booking-flow completion, "track status"
+  /// shortcuts) — never from build() — so this doesn't reload on every
+  /// rebuild.
+  void _switchToTab(int index) {
+    setState(() => _currentIndex = index);
+    if (index == 1) {
+      _bookingsKey.currentState?.reload();
+    }
+  }
 
   List<Widget> _defaultPages() => [
     HomeScreen(
       onBookService: _handleBookService,
       onTrackStatus: _goToBookingsTab,
     ),
-    const BookingsScreen(),
+    BookingsScreen(key: _bookingsKey),
     NotificationsScreen(onUnreadCountChanged: _onUnreadCountChanged),
     ProfileScreen(onViewBookingHistory: _goToBookingsTab),
   ];
@@ -88,7 +106,7 @@ class _MainShellState extends State<MainShell> {
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _currentIndex,
-        onTap: (index) => setState(() => _currentIndex = index),
+        onTap: _switchToTab,
         selectedItemColor: AppColors.primary,
         unselectedItemColor: Colors.black54,
         type: BottomNavigationBarType.fixed,
