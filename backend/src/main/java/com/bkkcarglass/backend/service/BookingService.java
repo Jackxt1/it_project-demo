@@ -19,6 +19,7 @@ import com.bkkcarglass.backend.entity.Vehicle;
 import com.bkkcarglass.backend.exception.BookingAccessDeniedException;
 import com.bkkcarglass.backend.exception.BookingSlotFullException;
 import com.bkkcarglass.backend.exception.InvalidStatusTransitionException;
+import com.bkkcarglass.backend.exception.OutOfStockException;
 import com.bkkcarglass.backend.exception.QuoteNotAvailableException;
 import com.bkkcarglass.backend.exception.ResourceNotFoundException;
 import com.bkkcarglass.backend.exception.TechnicianDeactivatedException;
@@ -70,6 +71,13 @@ public class BookingService {
         }
         if (product != null && !product.isActive()) {
             throw new ResourceNotFoundException("Product", request.getProductId());
+        }
+        if (product != null && product.getStockQuantity() != null) {
+            if (product.getStockQuantity() <= 0) {
+                throw new OutOfStockException();
+            }
+            product.setStockQuantity(product.getStockQuantity() - 1);
+            productRepository.save(product);
         }
 
         long activeCount = bookingRepository.countByServiceIdAndBookingDateAndTimeSlotAndStatusNot(
@@ -194,6 +202,15 @@ public class BookingService {
 
         if (request.getStatus() == BookingStatus.IN_PROGRESS && booking.getTechnician() == null) {
             throw new TechnicianNotAssignedException();
+        }
+
+        BookingStatus previousStatus = booking.getStatus();
+        if (request.getStatus() == BookingStatus.CANCELLED && previousStatus != BookingStatus.CANCELLED) {
+            Product product = booking.getProduct();
+            if (product != null && product.getStockQuantity() != null) {
+                product.setStockQuantity(product.getStockQuantity() + 1);
+                productRepository.save(product);
+            }
         }
 
         booking.setStatus(request.getStatus());

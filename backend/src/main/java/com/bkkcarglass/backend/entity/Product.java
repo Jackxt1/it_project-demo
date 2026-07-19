@@ -58,6 +58,9 @@ public class Product {
     @Builder.Default
     private boolean active = true;
 
+    @Column(name = "stock_quantity")
+    private Integer stockQuantity;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 

@@ -17,6 +17,7 @@ import com.bkkcarglass.backend.entity.VehicleType;
 import com.bkkcarglass.backend.exception.BookingAccessDeniedException;
 import com.bkkcarglass.backend.exception.BookingSlotFullException;
 import com.bkkcarglass.backend.exception.InvalidStatusTransitionException;
+import com.bkkcarglass.backend.exception.OutOfStockException;
 import com.bkkcarglass.backend.exception.QuoteNotAvailableException;
 import com.bkkcarglass.backend.exception.ResourceNotFoundException;
 import com.bkkcarglass.backend.repository.BookingRepository;
@@ -327,5 +328,70 @@ class BookingServiceTest {
         bookingService.assignTechnician(64L, request);
 
         verify(messagingTemplate).convertAndSend(eq("/topic/technician/7/queue"), any(BookingResponse.class));
+    }
+
+    @Test
+    void create_decrementsStockWhenTracked() {
+        Product trackedProduct = Product.builder().id(8L).name("ฟิล์มพรีเมียม").active(true).stockQuantity(3).build();
+        lenient().when(bookingRepository.countByServiceIdAndBookingDateAndTimeSlotAndStatusNot(
+                anyLong(), any(LocalDate.class), anyString(), eq(BookingStatus.CANCELLED)))
+                .thenReturn(0L);
+        when(bookingRepository.existsByOrderCode(anyString())).thenReturn(false);
+        when(productRepository.findById(8L)).thenReturn(Optional.of(trackedProduct));
+
+        BookingRequest request = washRequest();
+        request.setProductId(8L);
+
+        bookingService.create(request);
+
+        assertEquals(2, trackedProduct.getStockQuantity());
+    }
+
+    @Test
+    void create_throwsOutOfStockWhenZero() {
+        Product outOfStock = Product.builder().id(9L).name("ฟิล์มพรีเมียม").active(true).stockQuantity(0).build();
+        lenient().when(bookingRepository.countByServiceIdAndBookingDateAndTimeSlotAndStatusNot(
+                anyLong(), any(LocalDate.class), anyString(), eq(BookingStatus.CANCELLED)))
+                .thenReturn(0L);
+        when(productRepository.findById(9L)).thenReturn(Optional.of(outOfStock));
+
+        BookingRequest request = washRequest();
+        request.setProductId(9L);
+
+        assertThrows(OutOfStockException.class, () -> bookingService.create(request));
+    }
+
+    @Test
+    void updateStatus_restoresStockOnCancel() {
+        Product trackedProduct = Product.builder().id(10L).name("ฟิล์มพรีเมียม").active(true).stockQuantity(1).build();
+        Booking booking = Booking.builder()
+                .id(70L).user(customer).service(washService).product(trackedProduct)
+                .bookingDate(LocalDate.now().plusDays(1)).timeSlot("09:00")
+                .status(BookingStatus.CONFIRMED).build();
+        when(bookingRepository.findById(70L)).thenReturn(Optional.of(booking));
+
+        BookingStatusUpdateRequest request = new BookingStatusUpdateRequest();
+        request.setStatus(BookingStatus.CANCELLED);
+
+        bookingService.updateStatus(70L, request);
+
+        assertEquals(2, trackedProduct.getStockQuantity());
+    }
+
+    @Test
+    void updateStatus_doesNotTouchStockWhenNotTracked() {
+        Product untrackedProduct = Product.builder().id(11L).name("ล้างธรรมดา").active(true).stockQuantity(null).build();
+        Booking booking = Booking.builder()
+                .id(71L).user(customer).service(washService).product(untrackedProduct)
+                .bookingDate(LocalDate.now().plusDays(1)).timeSlot("09:00")
+                .status(BookingStatus.CONFIRMED).build();
+        when(bookingRepository.findById(71L)).thenReturn(Optional.of(booking));
+
+        BookingStatusUpdateRequest request = new BookingStatusUpdateRequest();
+        request.setStatus(BookingStatus.CANCELLED);
+
+        bookingService.updateStatus(71L, request);
+
+        assertNull(untrackedProduct.getStockQuantity());
     }
 }

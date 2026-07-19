@@ -212,3 +212,5 @@ ALTER TABLE users ADD CONSTRAINT users_role_check
     CHECK (role IN ('CUSTOMER', 'ADMIN', 'OWNER', 'TECHNICIAN'))@@
 
 ALTER TABLE technicians ADD COLUMN IF NOT EXISTS user_id BIGINT UNIQUE REFERENCES users (id)@@
+
+ALTER TABLE products ADD COLUMN IF NOT EXISTS stock_quantity INTEGER@@

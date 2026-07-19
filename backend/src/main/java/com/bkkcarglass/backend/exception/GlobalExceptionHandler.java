@@ -79,6 +79,11 @@ public class GlobalExceptionHandler {
         return buildResponse(HttpStatus.BAD_REQUEST, ex.getMessage());
     }
 
+    @ExceptionHandler(OutOfStockException.class)
+    public ResponseEntity<Map<String, Object>> handleOutOfStock(OutOfStockException ex) {
+        return buildResponse(HttpStatus.CONFLICT, ex.getMessage());
+    }
+
     @ExceptionHandler(org.springframework.security.authentication.DisabledException.class)
     public ResponseEntity<Map<String, Object>> handleDisabled(
             org.springframework.security.authentication.DisabledException ex) {
