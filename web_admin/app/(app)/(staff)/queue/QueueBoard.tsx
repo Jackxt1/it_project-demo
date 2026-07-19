@@ -3,11 +3,13 @@ import { useEffect, useState } from 'react';
 import { apiGet, apiPut, apiPatch, ApiError } from '@/lib/api';
 import type { Booking, BookingStatus, Technician } from '@/lib/types';
 import StatusBadge from '@/components/StatusBadge';
+import { createStompClient } from '@/lib/ws';
+import { upsertBooking } from '@/lib/queueStore';
 import type { Role } from '@/lib/session';
 
 const STATUS_OPTIONS: BookingStatus[] = ['PENDING', 'CONFIRMED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED'];
 
-export default function QueueBoard({ role }: { role: Role }) {
+export default function QueueBoard({ role, userId }: { role: Role; userId: number | null }) {
   const isTechnician = role === 'TECHNICIAN';
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [technicians, setTechnicians] = useState<Technician[]>([]);
@@ -31,6 +33,19 @@ export default function QueueBoard({ role }: { role: Role }) {
     }
     load();
   }, [isTechnician]);
+
+  useEffect(() => {
+    if (!isTechnician || !userId) return;
+    const client = createStompClient((connected) => {
+      connected.subscribe(`/topic/technician/${userId}/queue`, (message) => {
+        const updated = JSON.parse(message.body) as Booking;
+        setBookings((prev) => upsertBooking(prev, updated));
+      });
+    });
+    return () => {
+      client.deactivate();
+    };
+  }, [isTechnician, userId]);
 
   async function updateStatus(id: number, status: BookingStatus) {
     try {
