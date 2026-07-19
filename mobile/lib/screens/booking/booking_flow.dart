@@ -7,6 +7,8 @@ import '../../models/service_item.dart';
 import '../../models/vehicle.dart';
 import '../../theme/app_theme.dart';
 import 'step1_vehicle.dart';
+import 'step2_product.dart';
+import 'step3_schedule.dart';
 
 /// Mutable holder for everything collected across the 5-step booking flow.
 /// Passed down to every step widget so each one can read/write its slice
@@ -27,8 +29,8 @@ class BookingDraft {
 
 const List<String> _stepTitles = [
   'เลือกรถ',
-  'ขั้นตอน 2',
-  'ขั้นตอน 3',
+  'เลือกสินค้า',
+  'นัดเวลา',
   'ขั้นตอน 4',
   'ขั้นตอน 5',
 ];
@@ -187,6 +189,18 @@ class _BookingFlowScreenState extends State<BookingFlowScreen> {
           draft: _draft,
           nextLabel: _step1NextLabel,
           onNext: _goNext,
+        );
+      case 2:
+        return Step2Product(
+          draft: _draft,
+          onNext: _goNext,
+          onBack: () => setState(() => _step = 1),
+        );
+      case 3:
+        return Step3Schedule(
+          draft: _draft,
+          onNext: _goNext,
+          onBack: () => setState(() => _step = 2),
         );
       default:
         return Center(child: Text('ขั้นตอน $_step'));
