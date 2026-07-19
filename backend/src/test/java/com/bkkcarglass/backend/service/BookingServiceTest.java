@@ -4,6 +4,7 @@ import com.bkkcarglass.backend.dto.AcceptQuoteRequest;
 import com.bkkcarglass.backend.dto.BookingRequest;
 import com.bkkcarglass.backend.dto.BookingResponse;
 import com.bkkcarglass.backend.dto.BookingStatusUpdateRequest;
+import com.bkkcarglass.backend.dto.BookingTechnicianAssignRequest;
 import com.bkkcarglass.backend.entity.BookingStatus;
 import com.bkkcarglass.backend.entity.Booking;
 import com.bkkcarglass.backend.entity.PaymentType;
@@ -42,6 +43,7 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -55,6 +57,7 @@ class BookingServiceTest {
     @Mock VehicleRepository vehicleRepository;
     @Mock CurrentUserService currentUserService;
     @Mock NotificationService notificationService;
+    @Mock org.springframework.messaging.simp.SimpMessagingTemplate messagingTemplate;
 
     BookingService bookingService;
 
@@ -66,7 +69,7 @@ class BookingServiceTest {
         bookingService = new BookingService(
                 bookingRepository, historyRepository, serviceRepository,
                 productRepository, technicianRepository, vehicleRepository,
-                currentUserService, notificationService);
+                currentUserService, notificationService, messagingTemplate);
 
         customer = User.builder().id(1L).fullName("ลูกค้า ทดสอบ").build();
         washService = ServiceEntity.builder().id(10L).name("ล้างรถ").maxPerSlot(5).build();
@@ -305,5 +308,24 @@ class BookingServiceTest {
         BookingResponse response = bookingService.updateStatusAsTechnician(63L, request);
 
         assertEquals(BookingStatus.IN_PROGRESS.name(), response.getStatus());
+    }
+
+    @Test
+    void assignTechnician_pushesToTechnicianQueueTopic() {
+        User technicianUser = User.builder().id(7L).build();
+        Technician technician = Technician.builder().id(1L).active(true).user(technicianUser).build();
+        Booking booking = Booking.builder()
+                .id(64L).user(customer).service(washService)
+                .bookingDate(LocalDate.now().plusDays(1)).timeSlot("09:00")
+                .status(BookingStatus.CONFIRMED).build();
+        when(bookingRepository.findById(64L)).thenReturn(Optional.of(booking));
+        when(technicianRepository.findById(1L)).thenReturn(Optional.of(technician));
+
+        BookingTechnicianAssignRequest request = new BookingTechnicianAssignRequest();
+        request.setTechnicianId(1L);
+
+        bookingService.assignTechnician(64L, request);
+
+        verify(messagingTemplate).convertAndSend(eq("/topic/technician/7/queue"), any(BookingResponse.class));
     }
 }

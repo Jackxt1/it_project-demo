@@ -31,6 +31,7 @@ import com.bkkcarglass.backend.repository.TechnicianRepository;
 import com.bkkcarglass.backend.repository.VehicleRepository;
 import com.bkkcarglass.backend.security.CurrentUserService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -51,6 +52,7 @@ public class BookingService {
     private final VehicleRepository vehicleRepository;
     private final CurrentUserService currentUserService;
     private final NotificationService notificationService;
+    private final SimpMessagingTemplate messagingTemplate;
 
     private final java.security.SecureRandom random = new java.security.SecureRandom();
 
@@ -242,7 +244,14 @@ public class BookingService {
 
         booking.setTechnician(technician);
         booking = bookingRepository.save(booking);
-        return toResponse(booking);
+        BookingResponse response = toResponse(booking);
+
+        if (technician.getUser() != null) {
+            messagingTemplate.convertAndSend(
+                    "/topic/technician/" + technician.getUser().getId() + "/queue", response);
+        }
+
+        return response;
     }
 
     @Transactional
