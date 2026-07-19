@@ -34,6 +34,9 @@ public class User {
     @Column(name = "fcm_token", length = 255)
     private String fcmToken;
 
+    @Column(name = "profile_image_url", length = 500)
+    private String profileImageUrl;
+
     @Column(name = "password_hash", nullable = false)
     private String passwordHash;
 
