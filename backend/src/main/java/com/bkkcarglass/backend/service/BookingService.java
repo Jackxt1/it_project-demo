@@ -12,6 +12,7 @@ import com.bkkcarglass.backend.entity.BookingStatusHistory;
 import com.bkkcarglass.backend.entity.NotificationType;
 import com.bkkcarglass.backend.entity.PaymentType;
 import com.bkkcarglass.backend.entity.Product;
+import com.bkkcarglass.backend.entity.Role;
 import com.bkkcarglass.backend.entity.ServiceEntity;
 import com.bkkcarglass.backend.entity.Technician;
 import com.bkkcarglass.backend.entity.User;
@@ -146,8 +147,8 @@ public class BookingService {
         Booking booking = getEntity(id);
         User currentUser = currentUserService.getCurrentUser();
         boolean isOwner = booking.getUser().getId().equals(currentUser.getId());
-        boolean isAdmin = currentUser.getRole().name().equals("ADMIN");
-        if (!isOwner && !isAdmin) {
+        boolean isStaff = currentUser.getRole() == Role.ADMIN || currentUser.getRole() == Role.OWNER;
+        if (!isOwner && !isStaff) {
             throw new BookingAccessDeniedException();
         }
         return toResponse(booking);
