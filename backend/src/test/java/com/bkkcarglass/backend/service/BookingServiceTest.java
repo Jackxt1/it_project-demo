@@ -3,16 +3,19 @@ package com.bkkcarglass.backend.service;
 import com.bkkcarglass.backend.dto.AcceptQuoteRequest;
 import com.bkkcarglass.backend.dto.BookingRequest;
 import com.bkkcarglass.backend.dto.BookingResponse;
+import com.bkkcarglass.backend.dto.BookingStatusUpdateRequest;
 import com.bkkcarglass.backend.entity.BookingStatus;
 import com.bkkcarglass.backend.entity.Booking;
 import com.bkkcarglass.backend.entity.PaymentType;
 import com.bkkcarglass.backend.entity.Product;
 import com.bkkcarglass.backend.entity.ServiceEntity;
+import com.bkkcarglass.backend.entity.Technician;
 import com.bkkcarglass.backend.entity.User;
 import com.bkkcarglass.backend.entity.Vehicle;
 import com.bkkcarglass.backend.entity.VehicleType;
 import com.bkkcarglass.backend.exception.BookingAccessDeniedException;
 import com.bkkcarglass.backend.exception.BookingSlotFullException;
+import com.bkkcarglass.backend.exception.InvalidStatusTransitionException;
 import com.bkkcarglass.backend.exception.QuoteNotAvailableException;
 import com.bkkcarglass.backend.exception.ResourceNotFoundException;
 import com.bkkcarglass.backend.repository.BookingRepository;
@@ -230,5 +233,77 @@ class BookingServiceTest {
         request.setPaymentType(PaymentType.DEPOSIT);
 
         assertThrows(BookingAccessDeniedException.class, () -> bookingService.acceptQuote(50L, request));
+    }
+
+    @Test
+    void findMyTechnicianQueue_returnsOnlyAssignedBookings() {
+        User technicianUser = User.builder().id(7L).build();
+        when(currentUserService.getCurrentUser()).thenReturn(technicianUser);
+        Booking assigned = Booking.builder()
+                .id(60L).user(customer).service(washService)
+                .bookingDate(LocalDate.now().plusDays(1)).timeSlot("09:00")
+                .status(BookingStatus.CONFIRMED).build();
+        when(bookingRepository.findByTechnicianUserIdOrderByBookingDateAscTimeSlotAsc(7L))
+                .thenReturn(List.of(assigned));
+
+        List<BookingResponse> result = bookingService.findMyTechnicianQueue();
+
+        assertEquals(1, result.size());
+        assertEquals(60L, result.get(0).getId());
+    }
+
+    @Test
+    void updateStatusAsTechnician_rejectsBookingNotAssignedToCaller() {
+        Technician otherTechnicianOwner = Technician.builder().id(1L)
+                .user(User.builder().id(999L).build()).build();
+        Booking booking = Booking.builder()
+                .id(61L).user(customer).service(washService).technician(otherTechnicianOwner)
+                .bookingDate(LocalDate.now().plusDays(1)).timeSlot("09:00")
+                .status(BookingStatus.CONFIRMED).build();
+        when(bookingRepository.findById(61L)).thenReturn(Optional.of(booking));
+        when(currentUserService.getCurrentUser()).thenReturn(User.builder().id(7L).build());
+
+        BookingStatusUpdateRequest request = new BookingStatusUpdateRequest();
+        request.setStatus(BookingStatus.IN_PROGRESS);
+
+        assertThrows(BookingAccessDeniedException.class,
+                () -> bookingService.updateStatusAsTechnician(61L, request));
+    }
+
+    @Test
+    void updateStatusAsTechnician_rejectsDisallowedStatus() {
+        User technicianUser = User.builder().id(7L).build();
+        Technician technician = Technician.builder().id(1L).user(technicianUser).build();
+        Booking booking = Booking.builder()
+                .id(62L).user(customer).service(washService).technician(technician)
+                .bookingDate(LocalDate.now().plusDays(1)).timeSlot("09:00")
+                .status(BookingStatus.CONFIRMED).build();
+        when(bookingRepository.findById(62L)).thenReturn(Optional.of(booking));
+        when(currentUserService.getCurrentUser()).thenReturn(technicianUser);
+
+        BookingStatusUpdateRequest request = new BookingStatusUpdateRequest();
+        request.setStatus(BookingStatus.CANCELLED);
+
+        assertThrows(InvalidStatusTransitionException.class,
+                () -> bookingService.updateStatusAsTechnician(62L, request));
+    }
+
+    @Test
+    void updateStatusAsTechnician_allowsOwnBookingTransitionToInProgress() {
+        User technicianUser = User.builder().id(7L).build();
+        Technician technician = Technician.builder().id(1L).user(technicianUser).build();
+        Booking booking = Booking.builder()
+                .id(63L).user(customer).service(washService).technician(technician)
+                .bookingDate(LocalDate.now().plusDays(1)).timeSlot("09:00")
+                .status(BookingStatus.CONFIRMED).build();
+        when(bookingRepository.findById(63L)).thenReturn(Optional.of(booking));
+        when(currentUserService.getCurrentUser()).thenReturn(technicianUser);
+
+        BookingStatusUpdateRequest request = new BookingStatusUpdateRequest();
+        request.setStatus(BookingStatus.IN_PROGRESS);
+
+        BookingResponse response = bookingService.updateStatusAsTechnician(63L, request);
+
+        assertEquals(BookingStatus.IN_PROGRESS.name(), response.getStatus());
     }
 }

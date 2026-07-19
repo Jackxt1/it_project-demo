@@ -18,6 +18,7 @@ import com.bkkcarglass.backend.entity.User;
 import com.bkkcarglass.backend.entity.Vehicle;
 import com.bkkcarglass.backend.exception.BookingAccessDeniedException;
 import com.bkkcarglass.backend.exception.BookingSlotFullException;
+import com.bkkcarglass.backend.exception.InvalidStatusTransitionException;
 import com.bkkcarglass.backend.exception.QuoteNotAvailableException;
 import com.bkkcarglass.backend.exception.ResourceNotFoundException;
 import com.bkkcarglass.backend.exception.TechnicianDeactivatedException;
@@ -139,6 +140,48 @@ public class BookingService {
         if (!isOwner && !isAdmin) {
             throw new BookingAccessDeniedException();
         }
+        return toResponse(booking);
+    }
+
+    @Transactional(readOnly = true)
+    public List<BookingResponse> findMyTechnicianQueue() {
+        User currentUser = currentUserService.getCurrentUser();
+        return bookingRepository.findByTechnicianUserIdOrderByBookingDateAscTimeSlotAsc(currentUser.getId()).stream()
+                .map(this::toResponse)
+                .toList();
+    }
+
+    @Transactional
+    public BookingResponse updateStatusAsTechnician(Long id, BookingStatusUpdateRequest request) {
+        Booking booking = getEntity(id);
+        User currentUser = currentUserService.getCurrentUser();
+
+        Technician technician = booking.getTechnician();
+        if (technician == null || technician.getUser() == null
+                || !technician.getUser().getId().equals(currentUser.getId())) {
+            throw new BookingAccessDeniedException();
+        }
+        if (request.getStatus() != BookingStatus.IN_PROGRESS && request.getStatus() != BookingStatus.COMPLETED) {
+            throw new InvalidStatusTransitionException();
+        }
+
+        booking.setStatus(request.getStatus());
+        booking = bookingRepository.save(booking);
+
+        historyRepository.save(BookingStatusHistory.builder()
+                .booking(booking)
+                .status(request.getStatus())
+                .note(request.getNote())
+                .changedBy(currentUser)
+                .build());
+
+        notificationService.notifyUser(
+                booking.getUser(),
+                "อัปเดตสถานะการจอง",
+                statusMessage(booking.getStatus()),
+                NotificationType.BOOKING_STATUS,
+                booking);
+
         return toResponse(booking);
     }
 

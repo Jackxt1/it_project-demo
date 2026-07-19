@@ -49,6 +49,11 @@ public class GlobalExceptionHandler {
         return buildResponse(HttpStatus.BAD_REQUEST, ex.getMessage());
     }
 
+    @ExceptionHandler(InvalidStatusTransitionException.class)
+    public ResponseEntity<Map<String, Object>> handleInvalidStatusTransition(InvalidStatusTransitionException ex) {
+        return buildResponse(HttpStatus.BAD_REQUEST, ex.getMessage());
+    }
+
     @ExceptionHandler(TechnicianDeactivatedException.class)
     public ResponseEntity<Map<String, Object>> handleTechnicianDeactivated(TechnicianDeactivatedException ex) {
         return buildResponse(HttpStatus.CONFLICT, ex.getMessage());
