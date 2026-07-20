@@ -216,3 +216,51 @@ ALTER TABLE technicians ADD COLUMN IF NOT EXISTS user_id BIGINT UNIQUE REFERENCE
 ALTER TABLE products ADD COLUMN IF NOT EXISTS stock_quantity INTEGER@@
 
 ALTER TABLE users ADD COLUMN IF NOT EXISTS profile_image_url VARCHAR(500)@@
+
+-- Repair: an early manual insert of the tint-film service lost its Thai name to
+-- an encoding error and is now stored as literal '?' characters. Restore it so
+-- the mobile app's service-name-based mode detection ("ฟิล์ม" -> film picker)
+-- works again. Idempotent: after the first run no all-'?' row remains.
+UPDATE services
+SET name = 'ติดฟิล์มกรองแสง',
+    description = 'บริการติดฟิล์มกรองแสงรถยนต์ ลดความร้อน ปกป้องรังสี UV'
+WHERE name = '???????????????'@@
+
+-- Seed: tint-film service and sample films (idempotent). These are placeholder
+-- films so the booking flow has data to show; edit/replace them in the web-admin
+-- catalog page. Keyed by name so re-runs never duplicate.
+INSERT INTO services (name, description, base_price, max_per_slot)
+SELECT 'ติดฟิล์มกรองแสง', 'บริการติดฟิล์มกรองแสงรถยนต์ ลดความร้อน ปกป้องรังสี UV', 3000, 2
+WHERE NOT EXISTS (SELECT 1 FROM services WHERE name = 'ติดฟิล์มกรองแสง')@@
+
+INSERT INTO products (service_id, name, brand, grade, price, description,
+                      heat_rejection_pct, uv_rejection_pct, vlt_pct, stock_quantity)
+SELECT s.id, 'ฟิล์มปรอทประหยัด', 'BKK Film', 'ประหยัด', 3500,
+       'ฟิล์มปรอทเงิน ลดความร้อนระดับพื้นฐาน คุ้มค่า', 40, 99, 40, 20
+FROM services s
+WHERE s.name = 'ติดฟิล์มกรองแสง'
+  AND NOT EXISTS (SELECT 1 FROM products WHERE name = 'ฟิล์มปรอทประหยัด')@@
+
+INSERT INTO products (service_id, name, brand, grade, price, description,
+                      heat_rejection_pct, uv_rejection_pct, vlt_pct, stock_quantity)
+SELECT s.id, 'ฟิล์มมาตรฐาน', 'BKK Film', 'มาตรฐาน', 5500,
+       'ฟิล์มกรองแสงมาตรฐาน กันร้อนดี ทัศนวิสัยคมชัด', 60, 99, 40, 20
+FROM services s
+WHERE s.name = 'ติดฟิล์มกรองแสง'
+  AND NOT EXISTS (SELECT 1 FROM products WHERE name = 'ฟิล์มมาตรฐาน')@@
+
+INSERT INTO products (service_id, name, brand, grade, price, description,
+                      heat_rejection_pct, uv_rejection_pct, vlt_pct, stock_quantity)
+SELECT s.id, 'ฟิล์มเซรามิค', 'BKK Film', 'เซรามิค', 8900,
+       'ฟิล์มเซรามิค กันร้อนสูง ไม่รบกวนสัญญาณ GPS/มือถือ', 80, 99, 40, 20
+FROM services s
+WHERE s.name = 'ติดฟิล์มกรองแสง'
+  AND NOT EXISTS (SELECT 1 FROM products WHERE name = 'ฟิล์มเซรามิค')@@
+
+INSERT INTO products (service_id, name, brand, grade, price, description,
+                      heat_rejection_pct, uv_rejection_pct, vlt_pct, stock_quantity)
+SELECT s.id, 'ฟิล์มเซรามิคพรีเมียม', 'BKK Film', 'เซรามิคพรีเมียม', 12900,
+       'ฟิล์มเซรามิคเกรดพรีเมียม กันร้อนสูงสุด ใสพิเศษ', 95, 99, 40, 20
+FROM services s
+WHERE s.name = 'ติดฟิล์มกรองแสง'
+  AND NOT EXISTS (SELECT 1 FROM products WHERE name = 'ฟิล์มเซรามิคพรีเมียม')@@
