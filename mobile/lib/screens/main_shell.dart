@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
+import '../api/auth_service.dart';
 import '../api/notification_service.dart';
+import '../models/notification_item.dart';
 import '../models/service_item.dart';
 import '../theme/app_theme.dart';
 import 'booking/booking_flow.dart';
@@ -10,9 +12,15 @@ import 'notifications/notifications_screen.dart';
 import 'profile/profile_screen.dart';
 
 class MainShell extends StatefulWidget {
-  const MainShell({super.key, this.pages});
+  const MainShell({super.key, this.pages, this.notificationSocket});
 
   final List<Widget>? pages;
+
+  /// Injectable live-notification connection. Defaults to a real STOMP-backed
+  /// connector at runtime; widget tests pass a no-op fake so they never open
+  /// a socket. When the signed-in user's id is unknown (no session) the shell
+  /// simply never connects.
+  final NotificationSocketConnector? notificationSocket;
 
   @override
   State<MainShell> createState() => _MainShellState();
@@ -24,10 +32,61 @@ class _MainShellState extends State<MainShell> {
   final GlobalKey<BookingsScreenState> _bookingsKey =
       GlobalKey<BookingsScreenState>();
 
+  NotificationSocketConnector? _notificationSocket;
+
   @override
   void initState() {
     super.initState();
     _loadUnreadNotificationCount();
+    _connectNotificationSocket();
+  }
+
+  @override
+  void dispose() {
+    _notificationSocket?.dispose();
+    super.dispose();
+  }
+
+  /// Subscribes to live notifications pushed over STOMP so an admin/technician
+  /// status change bumps the badge (and shows a banner) immediately, without
+  /// waiting for the user to reopen the notifications tab. No-op when there's
+  /// no signed-in user id to scope the subscription to.
+  void _connectNotificationSocket() {
+    final userId = AuthService.instance.session?.userId;
+    if (userId == null) return;
+    final socket =
+        widget.notificationSocket ?? StompNotificationSocketConnector();
+    _notificationSocket = socket;
+    socket.connect(
+      userId: userId,
+      onNotification: _onLiveNotification,
+    );
+  }
+
+  void _onLiveNotification(NotificationItem notification) {
+    if (!mounted) return;
+    setState(() => _unreadNotificationCount += 1);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        backgroundColor: AppColors.primary,
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              notification.title,
+              style: const TextStyle(fontWeight: FontWeight.w700),
+            ),
+            Text(notification.body),
+          ],
+        ),
+        action: SnackBarAction(
+          label: 'ดู',
+          textColor: Colors.white,
+          onPressed: () => _switchToTab(2),
+        ),
+      ),
+    );
   }
 
   /// Best-effort initial fetch just to seed the bottom-nav badge; the count

@@ -9,6 +9,7 @@ import com.bkkcarglass.backend.exception.ResourceNotFoundException;
 import com.bkkcarglass.backend.repository.NotificationRepository;
 import com.bkkcarglass.backend.security.CurrentUserService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -22,10 +23,11 @@ public class NotificationService {
     private final NotificationRepository notificationRepository;
     private final PushNotificationService pushNotificationService;
     private final CurrentUserService currentUserService;
+    private final SimpMessagingTemplate messagingTemplate;
 
     @Transactional
     public void notifyUser(User user, String title, String body, NotificationType type, Booking booking) {
-        notificationRepository.save(Notification.builder()
+        Notification saved = notificationRepository.save(Notification.builder()
                 .user(user)
                 .title(title)
                 .body(body)
@@ -33,6 +35,11 @@ public class NotificationService {
                 .booking(booking)
                 .build());
         pushNotificationService.send(user.getFcmToken(), title, body);
+        // Live in-app delivery: the customer's app subscribes to this per-user
+        // topic over STOMP and updates its badge / shows a banner immediately,
+        // so admin/technician status changes reach the customer without an FCM
+        // push (which needs Firebase set up) or a manual refresh.
+        messagingTemplate.convertAndSend("/topic/notifications/" + user.getId(), toResponse(saved));
     }
 
     @Transactional(readOnly = true)

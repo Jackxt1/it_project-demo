@@ -13,11 +13,14 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 
 import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -28,6 +31,7 @@ class NotificationServiceTest {
     @Mock NotificationRepository notificationRepository;
     @Mock PushNotificationService pushNotificationService;
     @Mock CurrentUserService currentUserService;
+    @Mock SimpMessagingTemplate messagingTemplate;
 
     NotificationService notificationService;
 
@@ -36,9 +40,11 @@ class NotificationServiceTest {
     @BeforeEach
     void setUp() {
         notificationService = new NotificationService(
-                notificationRepository, pushNotificationService, currentUserService);
+                notificationRepository, pushNotificationService, currentUserService, messagingTemplate);
         user = User.builder().id(1L).fullName("ลูกค้า").fcmToken("token-1").build();
         lenient().when(currentUserService.getCurrentUser()).thenReturn(user);
+        lenient().when(notificationRepository.save(any(Notification.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
     }
 
     @Test
@@ -50,6 +56,17 @@ class NotificationServiceTest {
         assertEquals("หัวข้อ", captor.getValue().getTitle());
         assertEquals(NotificationType.BOOKING_STATUS, captor.getValue().getType());
         verify(pushNotificationService).send("token-1", "หัวข้อ", "เนื้อหา");
+    }
+
+    @Test
+    void notifyUser_publishesToPerUserStompTopic() {
+        notificationService.notifyUser(user, "หัวข้อ", "เนื้อหา", NotificationType.BOOKING_STATUS, null);
+
+        ArgumentCaptor<NotificationResponse> captor =
+                ArgumentCaptor.forClass(NotificationResponse.class);
+        verify(messagingTemplate).convertAndSend(eq("/topic/notifications/1"), captor.capture());
+        assertEquals("หัวข้อ", captor.getValue().getTitle());
+        assertEquals("เนื้อหา", captor.getValue().getBody());
     }
 
     @Test
