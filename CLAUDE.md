@@ -69,6 +69,29 @@ read/read-all), โปรไฟล์+รถของฉัน (CRUD, ฟอร�
 - API base URL ตั้งผ่าน `--dart-define=API_BASE_URL` (default http://localhost:8080) (Android emulator ใช้ http://10.0.2.2:8080)
 - ยังไม่ทำ: Google Sign-In, ลืมรหัสผ่าน, ชำระเงินจริง (เฟส 4), แอปช่าง (เฟส 3)
 
+## Web Admin/Technician App Status
+
+`web_admin/` — Next.js 14 (App Router, TypeScript, Tailwind) shared by ADMIN/OWNER staff
+and TECHNICIAN users, built entirely against the Phase 3 backend (`main`, commit `a0856fb`).
+
+- Auth: httpOnly-cookie JWT via `app/api/auth/login`, proxied through `app/api/[...proxy]`
+  so the browser never talks to the Spring Boot origin directly except WebSocket/STOMP.
+- Role gating: `middleware.ts` — `/dashboard/**` and `/staff/**` OWNER-only, `/queue/**` all
+  three staff roles, everything else ADMIN/OWNER.
+- Pages: `/queue` (list + status update + technician assignment, realtime push for
+  technicians via `/topic/technician/{userId}/queue`), `/customers` (search + detail),
+  `/catalog` (services + products CRUD + stock), `/technicians` (account CRUD),
+  `/chat` (inbox + live thread via `/topic/chat/{bookingId}`), `/dashboard` (OWNER revenue
+  summary).
+- Run: `cd web_admin && npm run dev` (needs the backend running; see `.env.local.example`
+  for `BACKEND_URL`/`NEXT_PUBLIC_WS_URL`).
+- Tests: `cd web_admin && npm test` (Vitest) — covers `lib/session.ts` (auth/role-gating
+  logic) and `lib/queueStore.ts` (realtime upsert). Page components are verified manually;
+  no component-test framework is set up for them.
+- Known gap: no dedicated ADMIN/OWNER account-management page yet (`/staff/**` middleware
+  rule is reserved for it) — new OWNER/ADMIN users must be created directly in the database
+  for now.
+
 ## Environment Variables (ต้องใส่ค่าจริงก่อน deploy)
 - `DB_URL`, `DB_USERNAME`, `DB_PASSWORD` — PostgreSQL connection จริง
 - `JWT_SECRET` — ต้องเปลี่ยนจาก placeholder ห้ามใช้ตอน production
