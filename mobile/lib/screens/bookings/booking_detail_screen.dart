@@ -4,8 +4,10 @@ import 'package:intl/intl.dart';
 
 import '../../api/api_client.dart';
 import '../../api/booking_service.dart';
+import '../../api/review_service.dart';
 import '../../models/booking.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/star_rating.dart';
 import '../chat/booking_chat_screen.dart';
 
 final NumberFormat _priceFormat = NumberFormat('#,###');
@@ -30,6 +32,7 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
 
   String _selectedPaymentType = 'DEPOSIT';
   bool _submittingQuote = false;
+  bool _reviewSubmitted = false;
 
   @override
   void initState() {
@@ -166,9 +169,53 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
               side: const BorderSide(color: AppColors.primary),
             ),
           ),
+          if (booking.status == 'COMPLETED') ...[
+            const SizedBox(height: 12),
+            _buildReviewAction(booking),
+          ],
         ],
       ),
     );
+  }
+
+  Widget _buildReviewAction(Booking booking) {
+    if (_reviewSubmitted) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: AppColors.surfaceLight,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: const Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.check_circle, color: AppColors.primary),
+            SizedBox(width: 8),
+            Text('ขอบคุณสำหรับรีวิว'),
+          ],
+        ),
+      );
+    }
+    return FilledButton.icon(
+      onPressed: () => _openReviewDialog(booking),
+      icon: const Icon(Icons.star_outline),
+      label: const Text('ให้คะแนนบริการ'),
+      style: FilledButton.styleFrom(
+        backgroundColor: AppColors.primary,
+        minimumSize: const Size.fromHeight(48),
+      ),
+    );
+  }
+
+  Future<void> _openReviewDialog(Booking booking) async {
+    final submitted = await showDialog<bool>(
+      context: context,
+      builder: (_) => _ReviewDialog(bookingId: booking.id),
+    );
+    if (submitted == true && mounted) {
+      setState(() => _reviewSubmitted = true);
+    }
   }
 
   Widget _buildStatusCard(Booking booking) {
@@ -420,6 +467,107 @@ class _TimelineTile extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Star-rating + comment dialog for reviewing a completed booking. Pops with
+/// `true` once the review is successfully submitted, `null`/`false` otherwise.
+class _ReviewDialog extends StatefulWidget {
+  const _ReviewDialog({required this.bookingId});
+
+  final int bookingId;
+
+  @override
+  State<_ReviewDialog> createState() => _ReviewDialogState();
+}
+
+class _ReviewDialogState extends State<_ReviewDialog> {
+  int _rating = 5;
+  final TextEditingController _commentController = TextEditingController();
+  bool _submitting = false;
+  String? _error;
+
+  @override
+  void dispose() {
+    _commentController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    setState(() {
+      _submitting = true;
+      _error = null;
+    });
+    try {
+      await ReviewService.instance.create(
+        bookingId: widget.bookingId,
+        rating: _rating,
+        comment: _commentController.text,
+      );
+      if (!mounted) return;
+      Navigator.of(context).pop(true);
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = e.message;
+        _submitting = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _error = 'ส่งรีวิวไม่สำเร็จ';
+        _submitting = false;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('ให้คะแนนบริการ'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          StarRatingInput(
+            value: _rating,
+            onChanged: (v) => setState(() => _rating = v),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _commentController,
+            maxLines: 3,
+            decoration: const InputDecoration(
+              hintText: 'เขียนความคิดเห็น (ไม่บังคับ)',
+              border: OutlineInputBorder(),
+            ),
+          ),
+          if (_error != null) ...[
+            const SizedBox(height: 8),
+            Text(_error!, style: const TextStyle(color: Colors.red)),
+          ],
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: _submitting ? null : () => Navigator.of(context).pop(),
+          child: const Text('ยกเลิก'),
+        ),
+        FilledButton(
+          style: FilledButton.styleFrom(backgroundColor: AppColors.primary),
+          onPressed: _submitting ? null : _submit,
+          child: _submitting
+              ? const SizedBox(
+                  height: 18,
+                  width: 18,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Colors.white,
+                  ),
+                )
+              : const Text('ส่งรีวิว'),
+        ),
+      ],
     );
   }
 }

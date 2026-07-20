@@ -79,6 +79,16 @@ http.Client _mockClient() => MockClient((request) async {
       if (request.url.path == '/api/products') {
         return _jsonResponse(_productsJson);
       }
+      if (request.url.path.startsWith('/api/reviews/service/')) {
+        final serviceId =
+            int.tryParse(request.url.pathSegments.last) ?? 0;
+        return _jsonResponse({
+          'serviceId': serviceId,
+          'averageRating': 0.0,
+          'totalReviews': 0,
+          'reviews': <dynamic>[],
+        });
+      }
       return http.Response('Not found', 404);
     });
 
@@ -159,7 +169,7 @@ void main() {
     expect(tapped?.name, 'ล้างรถ');
   });
 
-  testWidgets('tapping "รีวิว" shows a coming-soon SnackBar instead',
+  testWidgets('tapping "รีวิว" opens the reviews screen',
       (WidgetTester tester) async {
     _growSurface(tester);
     var bookCalled = false;
@@ -170,10 +180,11 @@ void main() {
     await tester.pumpAndSettle();
 
     await tester.tap(find.text('รีวิว'));
-    await tester.pump();
+    await tester.pumpAndSettle();
 
     expect(bookCalled, isFalse);
-    expect(find.text('เร็วๆ นี้'), findsOneWidget);
+    // ReviewsScreen's AppBar title — confirms navigation instead of a booking.
+    expect(find.text('รีวิวจากลูกค้า'), findsOneWidget);
   });
 
   testWidgets('search field filters the popular products list',

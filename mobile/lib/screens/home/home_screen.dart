@@ -8,6 +8,7 @@ import '../../models/product.dart';
 import '../../models/service_item.dart';
 import '../../theme/app_theme.dart';
 import '../chat/chatbot_screen.dart';
+import '../reviews/reviews_screen.dart';
 
 const String _comingSoonMessage = 'เร็วๆ นี้';
 
@@ -121,10 +122,17 @@ class _HomeScreenState extends State<HomeScreen> {
     return null;
   }
 
+  void _openReviews() {
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const ReviewsScreen()),
+    );
+  }
+
   void _handleQuickAction(_QuickAction action) {
     final keyword = action.matchKeyword;
     if (keyword == null) {
-      _showComingSoon();
+      // The only keyword-less quick action is "รีวิว".
+      _openReviews();
       return;
     }
     widget.onBookService?.call(_matchService(keyword));
