@@ -30,6 +30,10 @@ async function proxy(request: NextRequest, params: { proxy: string[] }): Promise
     responseHeaders.set('content-type', resContentType);
   }
 
+  if (backendRes.status === 204 || backendRes.status === 205 || backendRes.status === 304) {
+    return new NextResponse(null, { status: backendRes.status, headers: responseHeaders });
+  }
+
   return new NextResponse(responseBody, { status: backendRes.status, headers: responseHeaders });
 }
 
