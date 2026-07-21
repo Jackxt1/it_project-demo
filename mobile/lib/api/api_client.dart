@@ -38,7 +38,16 @@ class ApiClient {
   /// user is not signed in.
   String? token;
 
-  Uri _uri(String path) => Uri.parse('$apiBaseUrl$path');
+  // A trailing slash on API_BASE_URL (e.g. from a stray "/" in
+  // --dart-define) would otherwise produce a double slash before `path`,
+  // which the backend's security rules don't match — permitAll endpoints
+  // like GET /api/products then fall through to "must be authenticated"
+  // and return 403 instead of the expected public response.
+  Uri _uri(String path) {
+    final base =
+        apiBaseUrl.endsWith('/') ? apiBaseUrl.substring(0, apiBaseUrl.length - 1) : apiBaseUrl;
+    return Uri.parse('$base$path');
+  }
 
   Map<String, String> _headers({bool withContentType = false}) {
     final headers = <String, String>{};
