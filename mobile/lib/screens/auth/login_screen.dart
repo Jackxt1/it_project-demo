@@ -229,14 +229,14 @@ class _LoginForm extends StatefulWidget {
 
 class _LoginFormState extends State<_LoginForm> {
   final _formKey = GlobalKey<FormState>();
-  final _usernameController = TextEditingController();
+  final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _obscurePassword = true;
   bool _submitting = false;
 
   @override
   void dispose() {
-    _usernameController.dispose();
+    _emailController.dispose();
     _passwordController.dispose();
     super.dispose();
   }
@@ -247,7 +247,7 @@ class _LoginFormState extends State<_LoginForm> {
     setState(() => _submitting = true);
     try {
       await AuthService.instance
-          .login(_usernameController.text.trim(), _passwordController.text);
+          .login(_emailController.text.trim(), _passwordController.text);
       if (!mounted) return;
       widget.onSuccess();
     } on ApiException catch (e) {
@@ -272,12 +272,15 @@ class _LoginFormState extends State<_LoginForm> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _fieldLabel('ชื่อผู้ใช้'),
+          _fieldLabel('อีเมล'),
           TextFormField(
-            controller: _usernameController,
-            decoration: _fieldDecoration('กรุณากรอกชื่อผู้ใช้'),
+            controller: _emailController,
+            keyboardType: TextInputType.emailAddress,
+            decoration: _fieldDecoration('กรุณากรอกอีเมล'),
             validator: (value) {
-              if (value == null || value.trim().isEmpty) return 'กรุณากรอกชื่อผู้ใช้';
+              final v = value?.trim() ?? '';
+              if (v.isEmpty) return 'กรุณากรอกอีเมล';
+              if (!_emailPattern.hasMatch(v)) return 'รูปแบบอีเมลไม่ถูกต้อง';
               return null;
             },
           ),
