@@ -266,3 +266,14 @@ WHERE s.name = 'ติดฟิล์มกรองแสง'
   AND NOT EXISTS (SELECT 1 FROM products WHERE name = 'ฟิล์มเซรามิคพรีเมียม')@@
 
 ALTER TABLE bookings ADD COLUMN IF NOT EXISTS total_amount NUMERIC(10, 2)@@
+
+-- QR payment slip review (Group C: PromptPay QR + slip verification).
+ALTER TABLE bookings ADD COLUMN IF NOT EXISTS payment_status VARCHAR(20) NOT NULL DEFAULT 'AWAITING_PAYMENT'@@
+ALTER TABLE bookings ADD COLUMN IF NOT EXISTS slip_image_url VARCHAR(500)@@
+ALTER TABLE bookings ADD COLUMN IF NOT EXISTS slip_submitted_at TIMESTAMP@@
+ALTER TABLE bookings ADD COLUMN IF NOT EXISTS slip_reviewed_at TIMESTAMP@@
+ALTER TABLE bookings ADD COLUMN IF NOT EXISTS slip_review_note TEXT@@
+
+ALTER TABLE notifications DROP CONSTRAINT IF EXISTS notifications_type_check@@
+ALTER TABLE notifications ADD CONSTRAINT notifications_type_check
+    CHECK (type IN ('BOOKING_STATUS', 'QUOTE', 'JOB_ASSIGNED', 'CHAT', 'PAYMENT', 'OTHER'))@@

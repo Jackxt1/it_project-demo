@@ -89,6 +89,23 @@ public class Booking {
     @Column(name = "total_amount", precision = 10, scale = 2)
     private BigDecimal totalAmount;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "payment_status", length = 20, nullable = false)
+    @Builder.Default
+    private PaymentStatus paymentStatus = PaymentStatus.AWAITING_PAYMENT;
+
+    @Column(name = "slip_image_url", length = 500)
+    private String slipImageUrl;
+
+    @Column(name = "slip_submitted_at")
+    private LocalDateTime slipSubmittedAt;
+
+    @Column(name = "slip_reviewed_at")
+    private LocalDateTime slipReviewedAt;
+
+    @Column(name = "slip_review_note", columnDefinition = "TEXT")
+    private String slipReviewNote;
+
     @Column(columnDefinition = "TEXT")
     private String notes;
 

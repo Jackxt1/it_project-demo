@@ -5,6 +5,8 @@ import com.bkkcarglass.backend.dto.BookingRequest;
 import com.bkkcarglass.backend.dto.BookingResponse;
 import com.bkkcarglass.backend.dto.BookingStatusUpdateRequest;
 import com.bkkcarglass.backend.dto.BookingTechnicianAssignRequest;
+import com.bkkcarglass.backend.dto.PaymentSlipRequest;
+import com.bkkcarglass.backend.dto.PaymentSlipReviewRequest;
 import com.bkkcarglass.backend.service.BookingService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -30,6 +32,12 @@ public class BookingController {
     @GetMapping("/me")
     public ResponseEntity<List<BookingResponse>> findMine() {
         return ResponseEntity.ok(bookingService.findMine());
+    }
+
+    @GetMapping("/payment-slips/pending")
+    @PreAuthorize("hasAnyRole('ADMIN', 'OWNER')")
+    public ResponseEntity<List<BookingResponse>> findPendingSlipReviews() {
+        return ResponseEntity.ok(bookingService.findPendingSlipReviews());
     }
 
     @GetMapping("/{id}")
@@ -61,5 +69,18 @@ public class BookingController {
     public ResponseEntity<BookingResponse> acceptQuote(
             @PathVariable Long id, @Valid @RequestBody AcceptQuoteRequest request) {
         return ResponseEntity.ok(bookingService.acceptQuote(id, request));
+    }
+
+    @PostMapping("/{id}/payment-slip")
+    public ResponseEntity<BookingResponse> submitPaymentSlip(
+            @PathVariable Long id, @Valid @RequestBody PaymentSlipRequest request) {
+        return ResponseEntity.ok(bookingService.submitPaymentSlip(id, request));
+    }
+
+    @PutMapping("/{id}/payment-slip/review")
+    @PreAuthorize("hasAnyRole('ADMIN', 'OWNER')")
+    public ResponseEntity<BookingResponse> reviewPaymentSlip(
+            @PathVariable Long id, @Valid @RequestBody PaymentSlipReviewRequest request) {
+        return ResponseEntity.ok(bookingService.reviewPaymentSlip(id, request));
     }
 }

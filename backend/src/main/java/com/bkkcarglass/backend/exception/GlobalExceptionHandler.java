@@ -79,6 +79,11 @@ public class GlobalExceptionHandler {
         return buildResponse(HttpStatus.BAD_REQUEST, ex.getMessage());
     }
 
+    @ExceptionHandler(SlipNotPendingReviewException.class)
+    public ResponseEntity<Map<String, Object>> handleSlipNotPendingReview(SlipNotPendingReviewException ex) {
+        return buildResponse(HttpStatus.BAD_REQUEST, ex.getMessage());
+    }
+
     @ExceptionHandler(OutOfStockException.class)
     public ResponseEntity<Map<String, Object>> handleOutOfStock(OutOfStockException ex) {
         return buildResponse(HttpStatus.CONFLICT, ex.getMessage());

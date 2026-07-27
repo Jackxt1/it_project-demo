@@ -6,10 +6,13 @@ import com.bkkcarglass.backend.dto.BookingResponse;
 import com.bkkcarglass.backend.dto.BookingStatusHistoryResponse;
 import com.bkkcarglass.backend.dto.BookingStatusUpdateRequest;
 import com.bkkcarglass.backend.dto.BookingTechnicianAssignRequest;
+import com.bkkcarglass.backend.dto.PaymentSlipRequest;
+import com.bkkcarglass.backend.dto.PaymentSlipReviewRequest;
 import com.bkkcarglass.backend.entity.Booking;
 import com.bkkcarglass.backend.entity.BookingStatus;
 import com.bkkcarglass.backend.entity.BookingStatusHistory;
 import com.bkkcarglass.backend.entity.NotificationType;
+import com.bkkcarglass.backend.entity.PaymentStatus;
 import com.bkkcarglass.backend.entity.PaymentType;
 import com.bkkcarglass.backend.entity.Product;
 import com.bkkcarglass.backend.entity.Role;
@@ -23,6 +26,7 @@ import com.bkkcarglass.backend.exception.InvalidStatusTransitionException;
 import com.bkkcarglass.backend.exception.OutOfStockException;
 import com.bkkcarglass.backend.exception.QuoteNotAvailableException;
 import com.bkkcarglass.backend.exception.ResourceNotFoundException;
+import com.bkkcarglass.backend.exception.SlipNotPendingReviewException;
 import com.bkkcarglass.backend.exception.TechnicianDeactivatedException;
 import com.bkkcarglass.backend.exception.TechnicianNotAssignedException;
 import com.bkkcarglass.backend.repository.BookingRepository;
@@ -40,6 +44,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Service
@@ -55,6 +60,7 @@ public class BookingService {
     private final CurrentUserService currentUserService;
     private final NotificationService notificationService;
     private final SimpMessagingTemplate messagingTemplate;
+    private final SlipVerificationService slipVerificationService;
 
     private final java.security.SecureRandom random = new java.security.SecureRandom();
 
@@ -303,6 +309,60 @@ public class BookingService {
         return toResponse(booking);
     }
 
+    @Transactional
+    public BookingResponse submitPaymentSlip(Long id, PaymentSlipRequest request) {
+        Booking booking = getEntity(id);
+        User currentUser = currentUserService.getCurrentUser();
+        if (!booking.getUser().getId().equals(currentUser.getId())) {
+            throw new BookingAccessDeniedException();
+        }
+
+        booking.setSlipImageUrl(request.getImageUrl());
+        booking.setSlipSubmittedAt(LocalDateTime.now());
+        booking.setSlipReviewedAt(null);
+        booking.setSlipReviewNote(null);
+        // Automatic verification isn't wired up yet (see SlipVerificationService) —
+        // every submission queues for manual admin review for now.
+        booking.setPaymentStatus(PaymentStatus.PENDING_REVIEW);
+        booking = bookingRepository.save(booking);
+
+        return toResponse(booking);
+    }
+
+    @Transactional
+    public BookingResponse reviewPaymentSlip(Long id, PaymentSlipReviewRequest request) {
+        Booking booking = getEntity(id);
+        if (booking.getPaymentStatus() != PaymentStatus.PENDING_REVIEW) {
+            throw new SlipNotPendingReviewException();
+        }
+
+        boolean approved = Boolean.TRUE.equals(request.getApproved());
+        booking.setPaymentStatus(approved ? PaymentStatus.VERIFIED : PaymentStatus.REJECTED);
+        booking.setSlipReviewedAt(LocalDateTime.now());
+        booking.setSlipReviewNote(request.getNote());
+        booking = bookingRepository.save(booking);
+
+        notificationService.notifyUser(
+                booking.getUser(),
+                approved ? "ยืนยันการชำระเงินแล้ว" : "สลิปการโอนเงินมีปัญหา",
+                approved
+                        ? "ร้านตรวจสอบสลิปของคุณเรียบร้อยแล้ว"
+                        : "กรุณาตรวจสอบสลิปอีกครั้งหรือติดต่อร้าน%s"
+                                .formatted(request.getNote() != null && !request.getNote().isBlank()
+                                        ? ": " + request.getNote() : ""),
+                NotificationType.PAYMENT,
+                booking);
+
+        return toResponse(booking);
+    }
+
+    @Transactional(readOnly = true)
+    public List<BookingResponse> findPendingSlipReviews() {
+        return bookingRepository.findByPaymentStatusOrderBySlipSubmittedAtAsc(PaymentStatus.PENDING_REVIEW).stream()
+                .map(this::toResponse)
+                .toList();
+    }
+
     Booking getEntity(Long id) {
         return bookingRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Booking", id));
@@ -375,6 +435,11 @@ public class BookingService {
                 .paymentType(booking.getPaymentType() != null ? booking.getPaymentType().name() : null)
                 .paidAmount(booking.getPaidAmount())
                 .totalAmount(booking.getTotalAmount())
+                .paymentStatus(booking.getPaymentStatus().name())
+                .slipImageUrl(booking.getSlipImageUrl())
+                .slipSubmittedAt(booking.getSlipSubmittedAt())
+                .slipReviewedAt(booking.getSlipReviewedAt())
+                .slipReviewNote(booking.getSlipReviewNote())
                 .createdAt(booking.getCreatedAt())
                 .updatedAt(booking.getUpdatedAt())
                 .statusHistory(history)

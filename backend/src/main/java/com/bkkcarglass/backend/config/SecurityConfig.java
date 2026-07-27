@@ -46,6 +46,7 @@ public class SecurityConfig {
                         .requestMatchers("/ws/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/services/**", "/api/products/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/reviews/service/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/payment/**").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/services/**").hasAnyRole("ADMIN", "OWNER")
                         .requestMatchers(HttpMethod.PUT, "/api/services/**").hasAnyRole("ADMIN", "OWNER")
                         .requestMatchers(HttpMethod.DELETE, "/api/services/**").hasAnyRole("ADMIN", "OWNER")

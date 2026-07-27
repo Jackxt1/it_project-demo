@@ -2,6 +2,7 @@ package com.bkkcarglass.backend.repository;
 
 import com.bkkcarglass.backend.entity.Booking;
 import com.bkkcarglass.backend.entity.BookingStatus;
+import com.bkkcarglass.backend.entity.PaymentStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -34,4 +35,6 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
     List<Object[]> countGroupedByStatus();
 
     boolean existsByOrderCode(String orderCode);
+
+    List<Booking> findByPaymentStatusOrderBySlipSubmittedAtAsc(PaymentStatus paymentStatus);
 }

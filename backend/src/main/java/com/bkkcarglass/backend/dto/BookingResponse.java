@@ -29,6 +29,11 @@ public class BookingResponse {
     private String imageUrl;
     private BigDecimal quotePrice;
     private BigDecimal totalAmount;
+    private String paymentStatus;
+    private String slipImageUrl;
+    private LocalDateTime slipSubmittedAt;
+    private LocalDateTime slipReviewedAt;
+    private String slipReviewNote;
     private String notes;
     private String orderCode;
     private Long vehicleId;

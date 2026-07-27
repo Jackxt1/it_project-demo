@@ -5,5 +5,6 @@ public enum NotificationType {
     QUOTE,
     JOB_ASSIGNED,
     CHAT,
+    PAYMENT,
     OTHER
 }
