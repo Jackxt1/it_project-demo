@@ -28,6 +28,7 @@ public class BookingResponse {
     private BigDecimal budget;
     private String imageUrl;
     private BigDecimal quotePrice;
+    private BigDecimal totalAmount;
     private String notes;
     private String orderCode;
     private Long vehicleId;

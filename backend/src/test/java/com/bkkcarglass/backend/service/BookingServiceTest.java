@@ -362,6 +362,46 @@ class BookingServiceTest {
     }
 
     @Test
+    void create_computesTotalAmountFromProductPriceAndServiceBasePrice() {
+        ServiceEntity filmService = ServiceEntity.builder()
+                .id(11L).name("ติดฟิล์มกรองแสง").maxPerSlot(2)
+                .basePrice(new BigDecimal("500.00")).build();
+        Product film = Product.builder()
+                .id(20L).name("ฟิล์ม 3M").active(true)
+                .price(new BigDecimal("15000.00")).build();
+        lenient().when(serviceRepository.findById(11L)).thenReturn(Optional.of(filmService));
+        lenient().when(bookingRepository.countByServiceIdAndBookingDateAndTimeSlotAndStatusNot(
+                anyLong(), any(LocalDate.class), anyString(), eq(BookingStatus.CANCELLED)))
+                .thenReturn(0L);
+        when(bookingRepository.existsByOrderCode(anyString())).thenReturn(false);
+        when(productRepository.findById(20L)).thenReturn(Optional.of(film));
+
+        BookingRequest request = washRequest();
+        request.setServiceId(11L);
+        request.setProductId(20L);
+
+        BookingResponse response = bookingService.create(request);
+
+        assertEquals(new BigDecimal("15500.00"), response.getTotalAmount());
+    }
+
+    @Test
+    void create_leavesTotalAmountNullWhenNoProduct() {
+        // Repair bookings have no product — the customer's rough budget and
+        // (later) the admin's quotePrice are the only price signals; there
+        // is no catalog price to sum, so totalAmount must stay null rather
+        // than silently showing 0.
+        lenient().when(bookingRepository.countByServiceIdAndBookingDateAndTimeSlotAndStatusNot(
+                anyLong(), any(LocalDate.class), anyString(), eq(BookingStatus.CANCELLED)))
+                .thenReturn(0L);
+        when(bookingRepository.existsByOrderCode(anyString())).thenReturn(false);
+
+        BookingResponse response = bookingService.create(washRequest());
+
+        assertNull(response.getTotalAmount());
+    }
+
+    @Test
     void updateStatus_restoresStockOnCancel() {
         Product trackedProduct = Product.builder().id(10L).name("ฟิล์มพรีเมียม").active(true).stockQuantity(1).build();
         Booking booking = Booking.builder()

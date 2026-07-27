@@ -264,3 +264,5 @@ SELECT s.id, 'ฟิล์มเซรามิคพรีเมียม', 'BK
 FROM services s
 WHERE s.name = 'ติดฟิล์มกรองแสง'
   AND NOT EXISTS (SELECT 1 FROM products WHERE name = 'ฟิล์มเซรามิคพรีเมียม')@@
+
+ALTER TABLE bookings ADD COLUMN IF NOT EXISTS total_amount NUMERIC(10, 2)@@

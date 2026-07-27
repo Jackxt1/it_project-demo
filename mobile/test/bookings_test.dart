@@ -25,6 +25,7 @@ Map<String, dynamic> _bookingJson({
   required String status,
   String orderCode = 'BK-2026-0001',
   double? quotePrice,
+  double? totalAmount,
   String? paymentType,
 }) =>
     {
@@ -47,6 +48,7 @@ Map<String, dynamic> _bookingJson({
       'status': status,
       'budget': 5000.0,
       'quotePrice': quotePrice,
+      'totalAmount': totalAmount,
       'notes': null,
       'statusHistory': [
         {
@@ -311,6 +313,35 @@ void main() {
 
         expect(find.text('ยืนยันใบเสนอราคา'), findsNothing);
         expect(find.textContaining('ร้านเสนอราคา'), findsNothing);
+      },
+    );
+
+    testWidgets(
+      'film/wash booking (no quote) shows totalAmount in "งบประมาณ/ราคา" '
+      'instead of a blank "-"',
+      (WidgetTester tester) async {
+        ApiClient.instance = ApiClient(
+          httpClient: MockClient((request) async {
+            if (request.method == 'GET' &&
+                request.url.path == '/api/bookings/8') {
+              return _jsonResponse(
+                _bookingJson(
+                  id: 8,
+                  status: 'CONFIRMED',
+                  quotePrice: null,
+                  totalAmount: 15500.0,
+                  paymentType: 'DEPOSIT',
+                ),
+              );
+            }
+            return http.Response('Not found', 404);
+          }),
+        );
+
+        await tester.pumpWidget(_wrap(const BookingDetailScreen(bookingId: 8)));
+        await tester.pumpAndSettle();
+
+        expect(find.textContaining('15,500'), findsOneWidget);
       },
     );
   });

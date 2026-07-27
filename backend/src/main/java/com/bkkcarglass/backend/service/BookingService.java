@@ -109,6 +109,7 @@ public class BookingService {
                 .budget(request.getBudget())
                 .imageUrl(request.getImageUrl())
                 .notes(request.getNotes())
+                .totalAmount(computeTotalAmount(product, service))
                 .build();
         booking = bookingRepository.save(booking);
 
@@ -315,6 +316,25 @@ public class BookingService {
         return code;
     }
 
+    /**
+     * Computed server-side from the current catalog prices (never trusting a
+     * client-supplied total) so it can't be manipulated, and snapshotted onto
+     * the booking at creation so later price edits don't change it in
+     * hindsight. Null for repair bookings (no product) — those rely on
+     * budget/quotePrice instead.
+     */
+    private BigDecimal computeTotalAmount(Product product, ServiceEntity service) {
+        if (product == null) {
+            return null;
+        }
+        BigDecimal total = product.getPrice() != null ? product.getPrice() : BigDecimal.ZERO;
+        BigDecimal basePrice = service.getBasePrice();
+        if (basePrice != null && basePrice.compareTo(BigDecimal.ZERO) > 0) {
+            total = total.add(basePrice);
+        }
+        return total;
+    }
+
     private BookingResponse toResponse(Booking booking) {
         List<BookingStatusHistoryResponse> history =
                 historyRepository.findByBookingIdOrderByChangedAtAsc(booking.getId()).stream()
@@ -354,6 +374,7 @@ public class BookingService {
                 .installArea(booking.getInstallArea() != null ? booking.getInstallArea().name() : null)
                 .paymentType(booking.getPaymentType() != null ? booking.getPaymentType().name() : null)
                 .paidAmount(booking.getPaidAmount())
+                .totalAmount(booking.getTotalAmount())
                 .createdAt(booking.getCreatedAt())
                 .updatedAt(booking.getUpdatedAt())
                 .statusHistory(history)

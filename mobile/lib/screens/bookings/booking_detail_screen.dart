@@ -367,9 +367,16 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
     );
   }
 
+  /// Repair bookings show the admin's quote once set, else the customer's
+  /// rough budget estimate. Film/wash bookings have neither — they show
+  /// [Booking.totalAmount], the price agreed at booking time (product +
+  /// install fee), snapshotted server-side so a later catalog price change
+  /// never makes this disagree with what the customer actually paid for.
   String _budgetOrPriceText(Booking booking) {
     final quote = booking.quotePrice;
     if (quote != null) return '${_priceFormat.format(quote)} บาท';
+    final total = booking.totalAmount;
+    if (total != null) return '${_priceFormat.format(total)} บาท';
     final budget = booking.budget;
     if (budget != null) return '${_priceFormat.format(budget)} บาท';
     return '-';

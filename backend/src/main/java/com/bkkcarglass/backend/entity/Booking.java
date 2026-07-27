@@ -79,6 +79,16 @@ public class Booking {
     @Column(name = "quote_price", precision = 10, scale = 2)
     private BigDecimal quotePrice;
 
+    /**
+     * Snapshotted at creation time (product.price + service.basePrice, when
+     * there's a product) rather than recomputed on read, so a later catalog
+     * price change never retroactively changes an already-placed booking's
+     * agreed total. Null for repair bookings, which have no product — use
+     * quotePrice/budget for those instead.
+     */
+    @Column(name = "total_amount", precision = 10, scale = 2)
+    private BigDecimal totalAmount;
+
     @Column(columnDefinition = "TEXT")
     private String notes;
 
