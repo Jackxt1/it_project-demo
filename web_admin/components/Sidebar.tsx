@@ -15,6 +15,7 @@ const STAFF_ITEMS: NavItem[] = [
   { href: '/catalog', label: 'บริการ/สินค้า' },
   { href: '/technicians', label: 'ช่าง' },
   { href: '/chat', label: 'แชท' },
+  { href: '/payments', label: 'ตรวจสอบสลิป' },
 ];
 
 const OWNER_ITEMS: NavItem[] = [{ href: '/dashboard', label: 'ภาพรวม' }];
