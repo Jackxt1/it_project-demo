@@ -33,10 +33,21 @@ const List<String> _stepTitles = [
 /// [initialService] is null, since there's no service yet for it to belong
 /// to.
 class BookingFlowScreen extends StatefulWidget {
-  const BookingFlowScreen({super.key, this.initialService, this.initialProduct});
+  const BookingFlowScreen({
+    super.key,
+    this.initialService,
+    this.initialProduct,
+    this.initialInstallArea,
+  });
 
   final ServiceItem? initialService;
   final Product? initialProduct;
+
+  /// Preselects step 2's film install area — set by the chatbot's
+  /// "ต้องการติดฟิล์มบริเวณไหนครับ" step so a customer arriving via "จองตัวนี้"
+  /// isn't asked the same question twice. Ignored when [initialService] is
+  /// null, same as [initialProduct].
+  final String? initialInstallArea;
 
   @override
   State<BookingFlowScreen> createState() => _BookingFlowScreenState();
@@ -44,7 +55,9 @@ class BookingFlowScreen extends StatefulWidget {
 
 class _BookingFlowScreenState extends State<BookingFlowScreen> {
   late final BookingDraft _draft = BookingDraft(service: widget.initialService)
-    ..product = widget.initialService != null ? widget.initialProduct : null;
+    ..product = widget.initialService != null ? widget.initialProduct : null
+    ..installArea =
+        widget.initialService != null ? widget.initialInstallArea : null;
   late bool _pickingService = widget.initialService == null;
   int _step = 1;
 

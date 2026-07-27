@@ -192,9 +192,13 @@ void main() {
       expect(find.widgetWithText(FilledButton, 'ส่งคำจอง'), findsOneWidget);
       expect(find.widgetWithText(FilledButton, 'ยืนยันเวลา'), findsNothing);
 
-      await tester.tap(find.text('${DateTime.now().day}').first);
+      final todayCellFinder = find.text('${DateTime.now().day}').first;
+      await tester.ensureVisible(todayCellFinder);
+      await tester.tap(todayCellFinder);
       await tester.pumpAndSettle();
-      await tester.tap(find.text('09:00'));
+      final slotFinder = find.text('09:00');
+      await tester.ensureVisible(slotFinder);
+      await tester.tap(slotFinder);
       await tester.pump();
 
       await tester.tap(find.widgetWithText(FilledButton, 'ส่งคำจอง'));

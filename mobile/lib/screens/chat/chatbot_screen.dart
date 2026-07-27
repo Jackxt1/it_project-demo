@@ -5,6 +5,7 @@ import '../../api/api_client.dart';
 import '../../api/booking_service.dart';
 import '../../api/catalog_service.dart';
 import '../../api/chat_service.dart';
+import '../../models/install_area.dart';
 import '../../models/product.dart';
 import '../../models/product_recommendation.dart';
 import '../../models/service_item.dart';
@@ -14,7 +15,7 @@ import 'booking_chat_screen.dart';
 
 final NumberFormat _priceFormat = NumberFormat('#,###');
 
-enum _BotState { awaitingService, awaitingBudget, done }
+enum _BotState { awaitingService, awaitingArea, awaitingBudget, done }
 
 /// One entry in the chat transcript — either a plain text bubble (bot or
 /// user), the row of service chips shown while the bot is waiting for a
@@ -39,6 +40,13 @@ class _ChatEntry {
         recommendation = null,
         service = null;
 
+  const _ChatEntry.areaChips()
+      : kind = _EntryKind.areaChips,
+        text = null,
+        services = null,
+        recommendation = null,
+        service = null;
+
   const _ChatEntry.productCard(
     ProductRecommendation this.recommendation,
     ServiceItem this.service,
@@ -60,7 +68,14 @@ class _ChatEntry {
   final ServiceItem? service;
 }
 
-enum _EntryKind { bot, user, serviceChips, productCard, contactButton }
+enum _EntryKind {
+  bot,
+  user,
+  serviceChips,
+  areaChips,
+  productCard,
+  contactButton,
+}
 
 /// หน้าแชทบอทแนะนำสินค้า (Task 9, Figma page 15): บอทถาม "สนใจบริการไหนครับ"
 /// พร้อมชิปชื่อบริการ → "งบประมาณเท่าไหร่ครับ" → เรียก
@@ -85,6 +100,7 @@ class _ChatbotScreenState extends State<ChatbotScreen> {
 
   List<ServiceItem> _services = [];
   ServiceItem? _selectedService;
+  String? _selectedInstallArea;
   _BotState _state = _BotState.awaitingService;
   bool _loadingServices = true;
   bool _requestingRecommend = false;
@@ -128,6 +144,8 @@ class _ChatbotScreenState extends State<ChatbotScreen> {
     _scrollToBottom();
   }
 
+  bool _isFilmService(ServiceItem service) => service.name.contains('ฟิล์ม');
+
   void _onChipTap(ServiceItem service) {
     if (_state != _BotState.awaitingService) return;
     setState(() => _entries.add(_ChatEntry.user(service.name)));
@@ -137,10 +155,42 @@ class _ChatbotScreenState extends State<ChatbotScreen> {
   void _chooseService(ServiceItem service) {
     setState(() {
       _selectedService = service;
+      _selectedInstallArea = null;
+      if (_isFilmService(service)) {
+        _state = _BotState.awaitingArea;
+        _entries.add(const _ChatEntry.bot('ต้องการติดฟิล์มบริเวณไหนครับ'));
+        _entries.add(const _ChatEntry.areaChips());
+      } else {
+        _state = _BotState.awaitingBudget;
+        _entries.add(const _ChatEntry.bot('งบประมาณเท่าไหร่ครับ'));
+      }
+    });
+    _scrollToBottom();
+  }
+
+  void _onAreaChipTap(InstallAreaOption option) {
+    if (_state != _BotState.awaitingArea) return;
+    setState(() => _entries.add(_ChatEntry.user(option.label)));
+    _chooseArea(option.value);
+  }
+
+  void _chooseArea(String value) {
+    setState(() {
+      _selectedInstallArea = value;
       _state = _BotState.awaitingBudget;
       _entries.add(const _ChatEntry.bot('งบประมาณเท่าไหร่ครับ'));
     });
     _scrollToBottom();
+  }
+
+  InstallAreaOption? _matchAreaByText(String text) {
+    final trimmed = text.trim();
+    for (final option in installAreaOptions) {
+      if (option.label.contains(trimmed) || trimmed.contains(option.label)) {
+        return option;
+      }
+    }
+    return null;
   }
 
   ServiceItem? _matchServiceByText(String text) {
@@ -160,6 +210,9 @@ class _ChatbotScreenState extends State<ChatbotScreen> {
     switch (_state) {
       case _BotState.awaitingService:
         _handleServiceText(text);
+        break;
+      case _BotState.awaitingArea:
+        _handleAreaText(text);
         break;
       case _BotState.awaitingBudget:
         _handleBudgetText(text);
@@ -187,6 +240,21 @@ class _ChatbotScreenState extends State<ChatbotScreen> {
       setState(
         () => _entries.add(
           const _ChatEntry.bot('ไม่พบบริการที่ตรงกัน กรุณาเลือกจากรายการด้านบนครับ'),
+        ),
+      );
+      _scrollToBottom();
+    }
+  }
+
+  void _handleAreaText(String text) {
+    setState(() => _entries.add(_ChatEntry.user(text)));
+    final match = _matchAreaByText(text);
+    if (match != null) {
+      _chooseArea(match.value);
+    } else {
+      setState(
+        () => _entries.add(
+          const _ChatEntry.bot('ไม่พบบริเวณที่ตรงกัน กรุณาเลือกจากตัวเลือกด้านบนครับ'),
         ),
       );
       _scrollToBottom();
@@ -265,6 +333,7 @@ class _ChatbotScreenState extends State<ChatbotScreen> {
         builder: (_) => BookingFlowScreen(
           initialService: service,
           initialProduct: product,
+          initialInstallArea: _isFilmService(service) ? _selectedInstallArea : null,
         ),
       ),
     );
@@ -365,6 +434,26 @@ class _ChatbotScreenState extends State<ChatbotScreen> {
                       label: Text(service.name),
                       backgroundColor: AppColors.surfaceLight,
                       onPressed: () => _onChipTap(service),
+                    ),
+                  )
+                  .toList(),
+            ),
+          ),
+        );
+      case _EntryKind.areaChips:
+        return Align(
+          alignment: Alignment.centerLeft,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: installAreaOptions
+                  .map(
+                    (option) => ActionChip(
+                      label: Text(option.label),
+                      backgroundColor: AppColors.surfaceLight,
+                      onPressed: () => _onAreaChipTap(option),
                     ),
                   )
                   .toList(),
