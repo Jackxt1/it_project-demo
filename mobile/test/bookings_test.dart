@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 
 import 'package:bkk_customer/api/api_client.dart';
 import 'package:bkk_customer/api/booking_service.dart';
@@ -27,6 +28,9 @@ Map<String, dynamic> _bookingJson({
   double? quotePrice,
   double? totalAmount,
   String? paymentType,
+  double paidAmount = 0.0,
+  String paymentStatus = 'AWAITING_PAYMENT',
+  String? slipReviewNote,
 }) =>
     {
       'id': id,
@@ -42,13 +46,18 @@ Map<String, dynamic> _bookingJson({
       'vehicleLicensePlate': 'กข 1234',
       'installArea': null,
       'paymentType': paymentType,
-      'paidAmount': 0.0,
+      'paidAmount': paidAmount,
       'bookingDate': '2026-07-20',
       'timeSlot': '09:00',
       'status': status,
       'budget': 5000.0,
       'quotePrice': quotePrice,
       'totalAmount': totalAmount,
+      'paymentStatus': paymentStatus,
+      'slipImageUrl': null,
+      'slipSubmittedAt': null,
+      'slipReviewedAt': null,
+      'slipReviewNote': slipReviewNote,
       'notes': null,
       'statusHistory': [
         {
@@ -342,6 +351,132 @@ void main() {
         await tester.pumpAndSettle();
 
         expect(find.textContaining('15,500'), findsOneWidget);
+      },
+    );
+
+    Future<void> pumpDetailWithPaymentConfig(
+      WidgetTester tester, {
+      required int bookingId,
+      required Map<String, dynamic> bookingJson,
+      String? promptPayId,
+    }) async {
+      ApiClient.instance = ApiClient(
+        httpClient: MockClient((request) async {
+          if (request.method == 'GET' &&
+              request.url.path == '/api/bookings/$bookingId') {
+            return _jsonResponse(bookingJson);
+          }
+          if (request.method == 'GET' &&
+              request.url.path == '/api/payment/config') {
+            return _jsonResponse({'promptPayId': promptPayId});
+          }
+          return http.Response('Not found', 404);
+        }),
+      );
+      await tester.pumpWidget(
+        _wrap(BookingDetailScreen(bookingId: bookingId)),
+      );
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets(
+      'nothing is owed (paidAmount 0): no payment/QR card at all',
+      (WidgetTester tester) async {
+        await pumpDetailWithPaymentConfig(
+          tester,
+          bookingId: 9,
+          bookingJson: _bookingJson(id: 9, status: 'PENDING', paidAmount: 0),
+          promptPayId: '0812345678',
+        );
+
+        expect(find.text('ชำระเงินผ่าน QR พร้อมเพย์'), findsNothing);
+      },
+    );
+
+    testWidgets(
+      'AWAITING_PAYMENT with PromptPay configured: shows the QR code and '
+      'an upload button',
+      (WidgetTester tester) async {
+        await pumpDetailWithPaymentConfig(
+          tester,
+          bookingId: 10,
+          bookingJson: _bookingJson(
+            id: 10,
+            status: 'CONFIRMED',
+            paidAmount: 4650,
+            paymentStatus: 'AWAITING_PAYMENT',
+          ),
+          promptPayId: '0812345678',
+        );
+
+        expect(find.text('ชำระเงินผ่าน QR พร้อมเพย์'), findsOneWidget);
+        expect(find.textContaining('4,650'), findsWidgets);
+        expect(find.byType(QrImageView), findsOneWidget);
+        expect(find.text('แนบสลิปการโอนเงิน'), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      'AWAITING_PAYMENT with no PromptPay ID configured: shows a '
+      '"not configured" message instead of a broken QR',
+      (WidgetTester tester) async {
+        await pumpDetailWithPaymentConfig(
+          tester,
+          bookingId: 11,
+          bookingJson: _bookingJson(
+            id: 11,
+            status: 'CONFIRMED',
+            paidAmount: 4650,
+            paymentStatus: 'AWAITING_PAYMENT',
+          ),
+          promptPayId: null,
+        );
+
+        expect(find.byType(QrImageView), findsNothing);
+        expect(find.textContaining('ยังไม่ได้ตั้งค่า'), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      'PENDING_REVIEW shows a waiting-for-review message, not the QR',
+      (WidgetTester tester) async {
+        await pumpDetailWithPaymentConfig(
+          tester,
+          bookingId: 12,
+          bookingJson: _bookingJson(
+            id: 12,
+            status: 'CONFIRMED',
+            paidAmount: 4650,
+            paymentStatus: 'PENDING_REVIEW',
+          ),
+          promptPayId: '0812345678',
+        );
+
+        expect(find.textContaining('รอร้านตรวจสอบ'), findsOneWidget);
+        expect(find.byType(QrImageView), findsNothing);
+      },
+    );
+
+    testWidgets(
+      'REJECTED shows the admin\'s note and a "ส่งสลิปใหม่" retry button '
+      'with the QR again',
+      (WidgetTester tester) async {
+        await pumpDetailWithPaymentConfig(
+          tester,
+          bookingId: 13,
+          bookingJson: _bookingJson(
+            id: 13,
+            status: 'CONFIRMED',
+            paidAmount: 4650,
+            paymentStatus: 'REJECTED',
+            slipReviewNote: 'ยอดเงินไม่ตรง',
+          ),
+          promptPayId: '0812345678',
+        );
+
+        expect(find.textContaining('ยอดเงินไม่ตรง'), findsOneWidget);
+        expect(find.text('ส่งสลิปใหม่'), findsOneWidget);
+        expect(find.byType(QrImageView), findsOneWidget);
       },
     );
   });
