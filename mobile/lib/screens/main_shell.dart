@@ -31,6 +31,8 @@ class _MainShellState extends State<MainShell> {
   int _unreadNotificationCount = 0;
   final GlobalKey<BookingsScreenState> _bookingsKey =
       GlobalKey<BookingsScreenState>();
+  final GlobalKey<NotificationsScreenState> _notificationsKey =
+      GlobalKey<NotificationsScreenState>();
 
   NotificationSocketConnector? _notificationSocket;
 
@@ -66,9 +68,18 @@ class _MainShellState extends State<MainShell> {
   void _onLiveNotification(NotificationItem notification) {
     if (!mounted) return;
     setState(() => _unreadNotificationCount += 1);
+    // The notifications tab may already be mounted (it lives inside an
+    // IndexedStack and never rebuilds on its own), so without this the new
+    // item stays invisible there until the next full app restart even
+    // though the toast below just announced it.
+    _notificationsKey.currentState?.reload();
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         backgroundColor: AppColors.primary,
+        // Floating + bottom margin keeps the toast clear of the docked FAB
+        // and the bottom navigation bar instead of overlapping them.
+        behavior: SnackBarBehavior.floating,
+        margin: const EdgeInsets.only(left: 16, right: 16, bottom: 96),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -137,6 +148,8 @@ class _MainShellState extends State<MainShell> {
     setState(() => _currentIndex = index);
     if (index == 1) {
       _bookingsKey.currentState?.reload();
+    } else if (index == 2) {
+      _notificationsKey.currentState?.reload();
     }
   }
 
@@ -146,7 +159,10 @@ class _MainShellState extends State<MainShell> {
       onTrackStatus: _goToBookingsTab,
     ),
     BookingsScreen(key: _bookingsKey),
-    NotificationsScreen(onUnreadCountChanged: _onUnreadCountChanged),
+    NotificationsScreen(
+      key: _notificationsKey,
+      onUnreadCountChanged: _onUnreadCountChanged,
+    ),
     ProfileScreen(onViewBookingHistory: _goToBookingsTab),
   ];
 
