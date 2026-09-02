@@ -1,16 +1,13 @@
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:intl/intl.dart';
-import 'package:qr_flutter/qr_flutter.dart';
 
 import '../../api/api_client.dart';
 import '../../api/booking_service.dart';
-import '../../api/payment_service.dart';
 import '../../api/review_service.dart';
 import '../../models/booking.dart';
 import '../../theme/app_theme.dart';
-import '../../utils/promptpay_qr.dart';
+import '../../widgets/payment_slip_card.dart';
 import '../../widgets/star_rating.dart';
 import '../chat/booking_chat_screen.dart';
 
@@ -38,69 +35,11 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
   bool _submittingQuote = false;
   bool _reviewSubmitted = false;
 
-  bool _loadingPromptPayId = true;
-  String? _promptPayId;
-  bool _uploadingSlip = false;
-  String? _slipUploadError;
-
   @override
   void initState() {
     super.initState();
     initializeDateFormatting('th');
     _load();
-    _loadPromptPayId();
-  }
-
-  Future<void> _loadPromptPayId() async {
-    try {
-      final id = await PaymentService.instance.fetchPromptPayId();
-      if (!mounted) return;
-      setState(() {
-        _promptPayId = id;
-        _loadingPromptPayId = false;
-      });
-    } catch (_) {
-      if (!mounted) return;
-      // Best-effort: a failed config fetch just means the QR card shows
-      // "not configured" rather than blocking the whole screen.
-      setState(() => _loadingPromptPayId = false);
-    }
-  }
-
-  Future<void> _pickAndSubmitSlip() async {
-    final booking = _booking;
-    if (booking == null) return;
-    final file = await ImagePicker().pickImage(source: ImageSource.gallery);
-    if (file == null || !mounted) return;
-    setState(() {
-      _uploadingSlip = true;
-      _slipUploadError = null;
-    });
-    try {
-      final imageUrl = await ApiClient.instance.uploadImage(file);
-      final updated = await BookingService.instance.submitPaymentSlip(
-        booking.id,
-        imageUrl,
-        booking.paidAmount,
-      );
-      if (!mounted) return;
-      setState(() {
-        _booking = updated;
-        _uploadingSlip = false;
-      });
-    } on ApiException catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _slipUploadError = e.message;
-        _uploadingSlip = false;
-      });
-    } catch (_) {
-      if (!mounted) return;
-      setState(() {
-        _slipUploadError = 'แนบสลิปไม่สำเร็จ';
-        _uploadingSlip = false;
-      });
-    }
   }
 
   Future<void> _load() async {
@@ -109,9 +48,7 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
       _error = null;
     });
     try {
-      final booking = await BookingService.instance.fetchById(
-        widget.bookingId,
-      );
+      final booking = await BookingService.instance.fetchById(widget.bookingId);
       if (!mounted) return;
       setState(() {
         _booking = booking;
@@ -156,7 +93,9 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
       setState(() => _submittingQuote = false);
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
-        ..showSnackBar(const SnackBar(content: Text('ยืนยันใบเสนอราคาไม่สำเร็จ')));
+        ..showSnackBar(
+          const SnackBar(content: Text('ยืนยันใบเสนอราคาไม่สำเร็จ')),
+        );
     }
   }
 
@@ -401,138 +340,13 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
     );
   }
 
-  /// QR-payment + slip-review card, shown whenever `paidAmount > 0`:
-  /// - `AWAITING_PAYMENT`: QR code (or "ยังไม่ได้ตั้งค่า" if the shop hasn't
-  ///   set a PromptPay ID) + "แนบสลิปการโอนเงิน" button.
-  /// - `PENDING_REVIEW`: "รอตรวจสอบสลิป" — nothing more to do but wait.
-  /// - `VERIFIED`: a confirmation banner.
-  /// - `REJECTED`: the admin's note (if any) + a button to try again.
+  /// QR-payment + slip-review card, shown whenever `paidAmount > 0` — see
+  /// [PaymentSlipCard] for the status-driven body (QR/upload, pending
+  /// review, verified, rejected).
   Widget _buildPaymentSlipCard(Booking booking) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceLight,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.shade300),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'ชำระเงินผ่าน QR พร้อมเพย์',
-            style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            'ยอดที่ต้องชำระ ${_priceFormat.format(booking.paidAmount)} บาท',
-            style: const TextStyle(fontWeight: FontWeight.w700, color: AppColors.primaryDark),
-          ),
-          const SizedBox(height: 12),
-          ..._buildPaymentSlipBody(booking),
-        ],
-      ),
-    );
-  }
-
-  List<Widget> _buildPaymentSlipBody(Booking booking) {
-    switch (booking.paymentStatus) {
-      case 'PENDING_REVIEW':
-        return const [
-          Row(
-            children: [
-              Icon(Icons.hourglass_top, color: AppColors.primaryDark),
-              SizedBox(width: 8),
-              Expanded(child: Text('ส่งสลิปแล้ว กำลังรอร้านตรวจสอบ')),
-            ],
-          ),
-        ];
-      case 'VERIFIED':
-        return const [
-          Row(
-            children: [
-              Icon(Icons.check_circle, color: Colors.green),
-              SizedBox(width: 8),
-              Expanded(child: Text('ยืนยันการชำระเงินแล้ว')),
-            ],
-          ),
-        ];
-      case 'REJECTED':
-        return [
-          Row(
-            children: [
-              const Icon(Icons.error_outline, color: Colors.red),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  booking.slipReviewNote != null && booking.slipReviewNote!.isNotEmpty
-                      ? 'สลิปมีปัญหา: ${booking.slipReviewNote}'
-                      : 'สลิปมีปัญหา กรุณาลองใหม่อีกครั้ง',
-                  style: const TextStyle(color: Colors.red),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          ..._buildQrAndUploadButton(booking, buttonLabel: 'ส่งสลิปใหม่'),
-        ];
-      case 'AWAITING_PAYMENT':
-      default:
-        return _buildQrAndUploadButton(booking, buttonLabel: 'แนบสลิปการโอนเงิน');
-    }
-  }
-
-  List<Widget> _buildQrAndUploadButton(Booking booking, {required String buttonLabel}) {
-    return [
-      _buildQrCode(booking),
-      const SizedBox(height: 12),
-      OutlinedButton.icon(
-        onPressed: _uploadingSlip ? null : _pickAndSubmitSlip,
-        icon: _uploadingSlip
-            ? const SizedBox(
-                height: 16,
-                width: 16,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              )
-            : const Icon(Icons.upload_outlined),
-        label: Text(buttonLabel),
-        style: OutlinedButton.styleFrom(
-          minimumSize: const Size.fromHeight(44),
-          foregroundColor: AppColors.primaryDark,
-          side: const BorderSide(color: AppColors.primary),
-        ),
-      ),
-      if (_slipUploadError != null) ...[
-        const SizedBox(height: 8),
-        Text(_slipUploadError!, style: const TextStyle(color: Colors.red, fontSize: 12)),
-      ],
-    ];
-  }
-
-  Widget _buildQrCode(Booking booking) {
-    if (_loadingPromptPayId) {
-      return const Center(child: CircularProgressIndicator());
-    }
-    final promptPayId = _promptPayId;
-    if (promptPayId == null) {
-      return const Text(
-        'ร้านค้ายังไม่ได้ตั้งค่า QR รับชำระเงิน กรุณาชำระเงินสด/โอนที่ร้าน',
-        style: TextStyle(color: Colors.black54),
-      );
-    }
-    final payload = buildPromptPayPayload(
-      promptPayId: promptPayId,
-      amount: booking.paidAmount,
-    );
-    return Center(
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: QrImageView(data: payload, size: 200),
-      ),
+    return PaymentSlipCard(
+      booking: booking,
+      onBookingUpdated: (updated) => setState(() => _booking = updated),
     );
   }
 
@@ -668,10 +482,7 @@ class _TimelineTile extends StatelessWidget {
                       dateLabel,
                       if (entry.changedByName != null) entry.changedByName!,
                     ].join(' • '),
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: Colors.black54,
-                    ),
+                    style: const TextStyle(fontSize: 12, color: Colors.black54),
                   ),
                 ],
               ),
@@ -829,10 +640,7 @@ class _QuotePaymentOption extends StatelessWidget {
                   ),
                   Text(
                     subtitle,
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: Colors.black54,
-                    ),
+                    style: const TextStyle(fontSize: 12, color: Colors.black54),
                   ),
                 ],
               ),

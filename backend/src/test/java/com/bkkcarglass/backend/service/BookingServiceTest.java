@@ -430,6 +430,31 @@ class BookingServiceTest {
     }
 
     @Test
+    void submitPaymentSlip_amountMatchesGeminiReading_autoVerifiesAndNotifiesTheCustomer() {
+        Booking booking = Booking.builder()
+                .id(62L).user(customer).service(washService)
+                .bookingDate(LocalDate.now().plusDays(1)).timeSlot("09:00")
+                .status(BookingStatus.PENDING)
+                .paymentStatus(PaymentStatus.AWAITING_PAYMENT)
+                .paidAmount(new BigDecimal("500.00"))
+                .build();
+        when(bookingRepository.findById(62L)).thenReturn(Optional.of(booking));
+        when(slipVerificationService.verifyAmount("https://example.com/slip.jpg", new BigDecimal("500.00")))
+                .thenReturn(true);
+
+        PaymentSlipRequest request = new PaymentSlipRequest();
+        request.setImageUrl("https://example.com/slip.jpg");
+        request.setAmount(new BigDecimal("500.00"));
+
+        BookingResponse response = bookingService.submitPaymentSlip(62L, request);
+
+        assertEquals(PaymentStatus.VERIFIED.name(), response.getPaymentStatus());
+        assertNotNull(response.getSlipReviewedAt());
+        verify(notificationService).notifyUser(
+                eq(customer), anyString(), anyString(), eq(NotificationType.PAYMENT), eq(booking));
+    }
+
+    @Test
     void submitPaymentSlip_rejectsWhenNotTheBookingOwner() {
         User otherUser = User.builder().id(2L).fullName("อีกคน").build();
         Booking booking = Booking.builder()

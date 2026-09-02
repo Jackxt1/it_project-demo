@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
@@ -40,12 +42,22 @@ const List<_QuickAction> _quickActions = [
 /// สถานะ, ช่องค้นหาที่กรอง "บริการยอดนิยม", แบนเนอร์, การ์ด "บริการด่วน" 4
 /// ใบ และ grid สินค้ายอดนิยมจาก [CatalogService.instance].
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key, this.onBookService, this.onTrackStatus});
+  const HomeScreen({
+    super.key,
+    this.onBookService,
+    this.onBookProduct,
+    this.onTrackStatus,
+  });
 
   /// เรียกเมื่อผู้ใช้กด "จองบริการ", แบนเนอร์ "จองเลย" หรือการ์ด
   /// "บริการด่วน" 3 ใบแรก — ส่ง [ServiceItem] ที่ match จากชื่อบริการ หรือ
   /// null เมื่อไม่ได้ระบุบริการเจาะจง (Task 4 จะผูกไป flow จองจริง).
   final void Function(ServiceItem?)? onBookService;
+
+  /// เรียกเมื่อผู้ใช้แตะการ์ดสินค้าใน "บริการยอดนิยม" — ส่งทั้งบริการที่
+  /// สินค้านั้นสังกัด (match จาก [Product.serviceId]) และตัวสินค้าเอง เพื่อ
+  /// ข้ามหน้าเลือกสินค้าใน step 2 ไปเลย (พรีเซ็ตฟิล์ม/แพ็กเกจที่กดมา).
+  final void Function(ServiceItem service, Product product)? onBookProduct;
 
   /// เรียกเมื่อผู้ใช้กด "ติดตามสถานะ" — ปกติ MainShell จะสลับไปแท็บการจอง.
   final VoidCallback? onTrackStatus;
@@ -105,9 +117,9 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _openChatbot() {
-    Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => const ChatbotScreen()),
-    );
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => const ChatbotScreen()));
   }
 
   /// จับคู่คีย์เวิร์ดของการ์ด "บริการด่วน" (เช่น "ฟิล์ม") กับบริการจริงจาก
@@ -123,9 +135,9 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _openReviews() {
-    Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => const ReviewsScreen()),
-    );
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => const ReviewsScreen()));
   }
 
   void _handleQuickAction(_QuickAction action) {
@@ -138,12 +150,28 @@ class _HomeScreenState extends State<HomeScreen> {
     widget.onBookService?.call(_matchService(keyword));
   }
 
+  void _handleProductTap(Product product) {
+    for (final service in _services) {
+      if (service.id == product.serviceId) {
+        widget.onBookProduct?.call(service, product);
+        return;
+      }
+    }
+  }
+
+  /// "สินค้ายอดนิยม" แสดงเฉพาะฟิล์ม (ไม่รวมแพ็กเกจล้างรถ ฯลฯ) — match จาก
+  /// [Product.serviceId] ของบริการที่ชื่อมีคำว่า "ฟิล์ม" เหมือน [_matchService].
+  List<Product> get _filmProducts {
+    final filmService = _matchService('ฟิล์ม');
+    if (filmService == null) return const [];
+    return _products.where((p) => p.serviceId == filmService.id).toList();
+  }
+
   List<Product> get _filteredProducts {
     final query = _searchQuery.trim().toLowerCase();
-    if (query.isEmpty) return _products;
-    return _products
-        .where((p) => p.name.toLowerCase().contains(query))
-        .toList();
+    final films = _filmProducts;
+    if (query.isEmpty) return films;
+    return films.where((p) => p.name.toLowerCase().contains(query)).toList();
   }
 
   @override
@@ -166,10 +194,8 @@ class _HomeScreenState extends State<HomeScreen> {
                       _TopBar(fullName: fullName, onIconTap: _showComingSoon),
                       const SizedBox(height: 16),
                       _ActionButtons(
-                        onBookService: () =>
-                            widget.onBookService?.call(null),
-                        onTrackStatus:
-                            widget.onTrackStatus ?? _showComingSoon,
+                        onBookService: () => widget.onBookService?.call(null),
+                        onTrackStatus: widget.onTrackStatus ?? _showComingSoon,
                       ),
                       const SizedBox(height: 16),
                       _SearchField(
@@ -177,14 +203,19 @@ class _HomeScreenState extends State<HomeScreen> {
                             setState(() => _searchQuery = value),
                       ),
                       const SizedBox(height: 16),
-                      _Banner(onBookNow: () => widget.onBookService?.call(null)),
+                      _PromoCarousel(
+                        onBookService: widget.onBookService,
+                        matchService: _matchService,
+                      ),
                       const SizedBox(height: 24),
                       const Align(
                         alignment: Alignment.centerLeft,
                         child: Text(
                           'บริการด่วน',
                           style: TextStyle(
-                              fontSize: 18, fontWeight: FontWeight.w700),
+                            fontSize: 18,
+                            fontWeight: FontWeight.w700,
+                          ),
                         ),
                       ),
                       const SizedBox(height: 12),
@@ -194,9 +225,11 @@ class _HomeScreenState extends State<HomeScreen> {
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           const Text(
-                            'บริการยอดนิยม',
+                            'สินค้ายอดนิยม',
                             style: TextStyle(
-                                fontSize: 18, fontWeight: FontWeight.w700),
+                              fontSize: 18,
+                              fontWeight: FontWeight.w700,
+                            ),
                           ),
                           TextButton(
                             onPressed: _showComingSoon,
@@ -236,14 +269,16 @@ class _HomeScreenState extends State<HomeScreen> {
                   sliver: SliverGrid(
                     gridDelegate:
                         const SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 2,
-                      mainAxisSpacing: 12,
-                      crossAxisSpacing: 12,
-                      childAspectRatio: 0.78,
-                    ),
+                          crossAxisCount: 2,
+                          mainAxisSpacing: 12,
+                          crossAxisSpacing: 12,
+                          childAspectRatio: 0.78,
+                        ),
                     delegate: SliverChildBuilderDelegate(
-                      (context, index) =>
-                          _ProductCard(product: products[index]),
+                      (context, index) => _ProductCard(
+                        product: products[index],
+                        onTap: () => _handleProductTap(products[index]),
+                      ),
                       childCount: products.length,
                     ),
                   ),
@@ -373,10 +408,144 @@ class _SearchField extends StatelessWidget {
   }
 }
 
-class _Banner extends StatelessWidget {
-  const _Banner({required this.onBookNow});
+class _PromoSlide {
+  const _PromoSlide({
+    required this.title,
+    required this.subtitle,
+    required this.icon,
+    required this.keyword,
+  });
 
-  final VoidCallback onBookNow;
+  final String title;
+  final String subtitle;
+  final IconData icon;
+
+  /// Keyword used to match this promo to a real [ServiceItem] — same
+  /// substring-matching convention as [_QuickAction.matchKeyword].
+  final String keyword;
+}
+
+const List<_PromoSlide> _promoSlides = [
+  _PromoSlide(
+    title: 'ติดฟิล์มกรองแสง',
+    subtitle: 'กันร้อน กันยูวี เพิ่มความเป็นส่วนตัว',
+    icon: Icons.window_outlined,
+    keyword: 'ฟิล์ม',
+  ),
+  _PromoSlide(
+    title: 'ซ่อมรอยร้าวกระจก',
+    subtitle: 'ซ่อมไว ไม่ต้องเปลี่ยนกระจกทั้งบาน',
+    icon: Icons.build_outlined,
+    keyword: 'ซ่อม',
+  ),
+  _PromoSlide(
+    title: 'ล้างรถครบวงจร',
+    subtitle: 'ล้าง ดูดฝุ่น เคลือบเงา ราคาเบาๆ',
+    icon: Icons.local_car_wash_outlined,
+    keyword: 'ล้าง',
+  ),
+];
+
+const Duration _promoAutoSlideInterval = Duration(seconds: 5);
+
+/// แบนเนอร์โปรโมชั่นหน้าแรก เลื่อนอัตโนมัติทุก 5 วิ วนตาม [_promoSlides]
+/// (ติดฟิล์ม → ซ่อมกระจก → ล้างรถ) ปัดนิ้วเปลี่ยนเองได้เช่นกัน — ตอนนี้ยังไม่
+/// มีรูปจริง จึงใช้พื้นหลังสีแดงเหมือนกันทุกสไลด์ไปก่อน เปลี่ยนแค่ไอคอน/ข้อความ.
+class _PromoCarousel extends StatefulWidget {
+  const _PromoCarousel({
+    required this.onBookService,
+    required this.matchService,
+  });
+
+  final void Function(ServiceItem?)? onBookService;
+  final ServiceItem? Function(String keyword) matchService;
+
+  @override
+  State<_PromoCarousel> createState() => _PromoCarouselState();
+}
+
+class _PromoCarouselState extends State<_PromoCarousel> {
+  final PageController _controller = PageController();
+  Timer? _timer;
+  int _page = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _restartTimer();
+  }
+
+  void _restartTimer() {
+    _timer?.cancel();
+    _timer = Timer.periodic(_promoAutoSlideInterval, (_) {
+      final next = (_page + 1) % _promoSlides.length;
+      _controller.animateToPage(
+        next,
+        duration: const Duration(milliseconds: 400),
+        curve: Curves.easeInOut,
+      );
+    });
+  }
+
+  void _onPageChanged(int page) {
+    setState(() => _page = page);
+    _restartTimer();
+  }
+
+  void _onBookNow(_PromoSlide slide) {
+    widget.onBookService?.call(widget.matchService(slide.keyword));
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        SizedBox(
+          height: 190,
+          child: PageView.builder(
+            controller: _controller,
+            onPageChanged: _onPageChanged,
+            itemCount: _promoSlides.length,
+            itemBuilder: (context, index) => _PromoSlideCard(
+              slide: _promoSlides[index],
+              onBookNow: _onBookNow,
+            ),
+          ),
+        ),
+        const SizedBox(height: 10),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            for (var i = 0; i < _promoSlides.length; i++)
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                margin: const EdgeInsets.symmetric(horizontal: 3),
+                width: i == _page ? 20 : 6,
+                height: 6,
+                decoration: BoxDecoration(
+                  color: i == _page ? AppColors.primary : Colors.black12,
+                  borderRadius: BorderRadius.circular(3),
+                ),
+              ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _PromoSlideCard extends StatelessWidget {
+  const _PromoSlideCard({required this.slide, required this.onBookNow});
+
+  final _PromoSlide slide;
+  final void Function(_PromoSlide slide) onBookNow;
 
   @override
   Widget build(BuildContext context) {
@@ -391,18 +560,19 @@ class _Banner extends StatelessWidget {
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const Text(
-                  'BKK',
-                  style: TextStyle(
+                Text(
+                  slide.title,
+                  style: const TextStyle(
                     color: Colors.white,
-                    fontSize: 26,
+                    fontSize: 20,
                     fontWeight: FontWeight.w900,
-                    letterSpacing: 2,
                   ),
                 ),
+                const SizedBox(height: 4),
                 Text(
-                  'CAR GLASS & FILM',
+                  slide.subtitle,
                   style: TextStyle(
                     color: Colors.white.withValues(alpha: 0.9),
                     fontSize: 12,
@@ -418,13 +588,13 @@ class _Banner extends StatelessWidget {
                       borderRadius: BorderRadius.circular(12),
                     ),
                   ),
-                  onPressed: onBookNow,
+                  onPressed: () => onBookNow(slide),
                   child: const Text('จองเลย'),
                 ),
               ],
             ),
           ),
-          const Icon(Icons.directions_car, color: Colors.white, size: 56),
+          Icon(slide.icon, color: Colors.white, size: 56),
         ],
       ),
     );
@@ -441,10 +611,10 @@ class _QuickActionsRow extends StatelessWidget {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: _quickActions
-          .map((action) => _QuickActionCard(
-                action: action,
-                onTap: () => onTap(action),
-              ))
+          .map(
+            (action) =>
+                _QuickActionCard(action: action, onTap: () => onTap(action)),
+          )
           .toList(),
     );
   }
@@ -484,53 +654,67 @@ class _QuickActionCard extends StatelessWidget {
 }
 
 class _ProductCard extends StatelessWidget {
-  const _ProductCard({required this.product});
+  const _ProductCard({required this.product, required this.onTap});
 
   final Product product;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final imageUrl = product.imageUrl;
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
+    return Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        onTap: onTap,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey.shade200),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Expanded(
-            child: imageUrl != null && imageUrl.isNotEmpty
-                ? Image.network(imageUrl, fit: BoxFit.cover, width: double.infinity)
-                : Container(color: Colors.grey.shade300),
+        child: Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.grey.shade200),
           ),
-          Padding(
-            padding: const EdgeInsets.all(8),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  product.name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style:
-                      const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+          clipBehavior: Clip.antiAlias,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: imageUrl != null && imageUrl.isNotEmpty
+                    ? Image.network(
+                        imageUrl,
+                        fit: BoxFit.cover,
+                        width: double.infinity,
+                      )
+                    : Container(color: Colors.grey.shade300),
+              ),
+              Padding(
+                padding: const EdgeInsets.all(8),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      product.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 13,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '${_priceFormat.format(product.price)} บาท',
+                      style: const TextStyle(
+                        color: AppColors.primary,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  '${_priceFormat.format(product.price)} บาท',
-                  style: const TextStyle(
-                    color: AppColors.primary,
-                    fontWeight: FontWeight.w700,
-                    fontSize: 13,
-                  ),
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }

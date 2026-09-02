@@ -321,10 +321,30 @@ public class BookingService {
         booking.setSlipSubmittedAt(LocalDateTime.now());
         booking.setSlipReviewedAt(null);
         booking.setSlipReviewNote(null);
-        // Automatic verification isn't wired up yet (see SlipVerificationService) —
-        // every submission queues for manual admin review for now.
-        booking.setPaymentStatus(PaymentStatus.PENDING_REVIEW);
+
+        // Trust the booking's own paidAmount (set at booking time), not the
+        // client-supplied request.getAmount() — a client shouldn't be able
+        // to influence what amount gets checked against the slip.
+        boolean autoVerified = slipVerificationService.verifyAmount(request.getImageUrl(), booking.getPaidAmount());
+        if (autoVerified) {
+            booking.setPaymentStatus(PaymentStatus.VERIFIED);
+            booking.setSlipReviewedAt(LocalDateTime.now());
+            booking.setSlipReviewNote("ตรวจสอบอัตโนมัติโดยระบบ");
+        } else {
+            // No automatic match (or verification isn't configured) — queue
+            // for manual admin review same as before.
+            booking.setPaymentStatus(PaymentStatus.PENDING_REVIEW);
+        }
         booking = bookingRepository.save(booking);
+
+        if (autoVerified) {
+            notificationService.notifyUser(
+                    booking.getUser(),
+                    "ยืนยันการชำระเงินแล้ว",
+                    "ระบบตรวจสอบสลิปของคุณเรียบร้อยแล้ว",
+                    NotificationType.PAYMENT,
+                    booking);
+        }
 
         return toResponse(booking);
     }

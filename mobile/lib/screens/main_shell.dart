@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../api/auth_service.dart';
 import '../api/notification_service.dart';
 import '../models/notification_item.dart';
+import '../models/product.dart';
 import '../models/service_item.dart';
 import '../theme/app_theme.dart';
 import 'booking/booking_flow.dart';
@@ -59,10 +60,7 @@ class _MainShellState extends State<MainShell> {
     final socket =
         widget.notificationSocket ?? StompNotificationSocketConnector();
     _notificationSocket = socket;
-    socket.connect(
-      userId: userId,
-      onNotification: _onLiveNotification,
-    );
+    socket.connect(userId: userId, onNotification: _onLiveNotification);
   }
 
   void _onLiveNotification(NotificationItem notification) {
@@ -133,6 +131,21 @@ class _MainShellState extends State<MainShell> {
     }
   }
 
+  /// Tapping a "บริการยอดนิยม" product card jumps straight into that
+  /// product's booking flow with both the service and the product itself
+  /// preselected (skips step 2's picker), same as the chatbot's "จองตัวนี้".
+  Future<void> _handleBookProduct(ServiceItem service, Product product) async {
+    final result = await Navigator.of(context).push<String>(
+      MaterialPageRoute(
+        builder: (_) =>
+            BookingFlowScreen(initialService: service, initialProduct: product),
+      ),
+    );
+    if (result == 'bookings' && mounted) {
+      _switchToTab(1);
+    }
+  }
+
   void _goToBookingsTab() => _switchToTab(1);
 
   /// Switches the visible tab and, when landing on the bookings tab,
@@ -156,6 +169,7 @@ class _MainShellState extends State<MainShell> {
   List<Widget> _defaultPages() => [
     HomeScreen(
       onBookService: _handleBookService,
+      onBookProduct: _handleBookProduct,
       onTrackStatus: _goToBookingsTab,
     ),
     BookingsScreen(key: _bookingsKey),
