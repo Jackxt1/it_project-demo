@@ -6,10 +6,13 @@ import com.bkkcarglass.backend.dto.BookingResponse;
 import com.bkkcarglass.backend.dto.BookingStatusHistoryResponse;
 import com.bkkcarglass.backend.dto.BookingStatusUpdateRequest;
 import com.bkkcarglass.backend.dto.BookingTechnicianAssignRequest;
+import com.bkkcarglass.backend.dto.PaymentSlipRequest;
+import com.bkkcarglass.backend.dto.PaymentSlipReviewRequest;
 import com.bkkcarglass.backend.entity.Booking;
 import com.bkkcarglass.backend.entity.BookingStatus;
 import com.bkkcarglass.backend.entity.BookingStatusHistory;
 import com.bkkcarglass.backend.entity.NotificationType;
+import com.bkkcarglass.backend.entity.PaymentStatus;
 import com.bkkcarglass.backend.entity.PaymentType;
 import com.bkkcarglass.backend.entity.Product;
 import com.bkkcarglass.backend.entity.Role;
@@ -23,6 +26,7 @@ import com.bkkcarglass.backend.exception.InvalidStatusTransitionException;
 import com.bkkcarglass.backend.exception.OutOfStockException;
 import com.bkkcarglass.backend.exception.QuoteNotAvailableException;
 import com.bkkcarglass.backend.exception.ResourceNotFoundException;
+import com.bkkcarglass.backend.exception.SlipNotPendingReviewException;
 import com.bkkcarglass.backend.exception.TechnicianDeactivatedException;
 import com.bkkcarglass.backend.exception.TechnicianNotAssignedException;
 import com.bkkcarglass.backend.repository.BookingRepository;
@@ -40,6 +44,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Service
@@ -55,6 +60,7 @@ public class BookingService {
     private final CurrentUserService currentUserService;
     private final NotificationService notificationService;
     private final SimpMessagingTemplate messagingTemplate;
+    private final SlipVerificationService slipVerificationService;
 
     private final java.security.SecureRandom random = new java.security.SecureRandom();
 
@@ -109,6 +115,7 @@ public class BookingService {
                 .budget(request.getBudget())
                 .imageUrl(request.getImageUrl())
                 .notes(request.getNotes())
+                .totalAmount(computeTotalAmount(product, service))
                 .build();
         booking = bookingRepository.save(booking);
 
@@ -302,6 +309,80 @@ public class BookingService {
         return toResponse(booking);
     }
 
+    @Transactional
+    public BookingResponse submitPaymentSlip(Long id, PaymentSlipRequest request) {
+        Booking booking = getEntity(id);
+        User currentUser = currentUserService.getCurrentUser();
+        if (!booking.getUser().getId().equals(currentUser.getId())) {
+            throw new BookingAccessDeniedException();
+        }
+
+        booking.setSlipImageUrl(request.getImageUrl());
+        booking.setSlipSubmittedAt(LocalDateTime.now());
+        booking.setSlipReviewedAt(null);
+        booking.setSlipReviewNote(null);
+
+        // Trust the booking's own paidAmount (set at booking time), not the
+        // client-supplied request.getAmount() — a client shouldn't be able
+        // to influence what amount gets checked against the slip.
+        boolean autoVerified = slipVerificationService.verifyAmount(request.getImageUrl(), booking.getPaidAmount());
+        if (autoVerified) {
+            booking.setPaymentStatus(PaymentStatus.VERIFIED);
+            booking.setSlipReviewedAt(LocalDateTime.now());
+            booking.setSlipReviewNote("ตรวจสอบอัตโนมัติโดยระบบ");
+        } else {
+            // No automatic match (or verification isn't configured) — queue
+            // for manual admin review same as before.
+            booking.setPaymentStatus(PaymentStatus.PENDING_REVIEW);
+        }
+        booking = bookingRepository.save(booking);
+
+        if (autoVerified) {
+            notificationService.notifyUser(
+                    booking.getUser(),
+                    "ยืนยันการชำระเงินแล้ว",
+                    "ระบบตรวจสอบสลิปของคุณเรียบร้อยแล้ว",
+                    NotificationType.PAYMENT,
+                    booking);
+        }
+
+        return toResponse(booking);
+    }
+
+    @Transactional
+    public BookingResponse reviewPaymentSlip(Long id, PaymentSlipReviewRequest request) {
+        Booking booking = getEntity(id);
+        if (booking.getPaymentStatus() != PaymentStatus.PENDING_REVIEW) {
+            throw new SlipNotPendingReviewException();
+        }
+
+        boolean approved = Boolean.TRUE.equals(request.getApproved());
+        booking.setPaymentStatus(approved ? PaymentStatus.VERIFIED : PaymentStatus.REJECTED);
+        booking.setSlipReviewedAt(LocalDateTime.now());
+        booking.setSlipReviewNote(request.getNote());
+        booking = bookingRepository.save(booking);
+
+        notificationService.notifyUser(
+                booking.getUser(),
+                approved ? "ยืนยันการชำระเงินแล้ว" : "สลิปการโอนเงินมีปัญหา",
+                approved
+                        ? "ร้านตรวจสอบสลิปของคุณเรียบร้อยแล้ว"
+                        : "กรุณาตรวจสอบสลิปอีกครั้งหรือติดต่อร้าน%s"
+                                .formatted(request.getNote() != null && !request.getNote().isBlank()
+                                        ? ": " + request.getNote() : ""),
+                NotificationType.PAYMENT,
+                booking);
+
+        return toResponse(booking);
+    }
+
+    @Transactional(readOnly = true)
+    public List<BookingResponse> findPendingSlipReviews() {
+        return bookingRepository.findByPaymentStatusOrderBySlipSubmittedAtAsc(PaymentStatus.PENDING_REVIEW).stream()
+                .map(this::toResponse)
+                .toList();
+    }
+
     Booking getEntity(Long id) {
         return bookingRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Booking", id));
@@ -313,6 +394,25 @@ public class BookingService {
             code = "BKDL-%06d-%04d".formatted(random.nextInt(1_000_000), random.nextInt(10_000));
         } while (bookingRepository.existsByOrderCode(code));
         return code;
+    }
+
+    /**
+     * Computed server-side from the current catalog prices (never trusting a
+     * client-supplied total) so it can't be manipulated, and snapshotted onto
+     * the booking at creation so later price edits don't change it in
+     * hindsight. Null for repair bookings (no product) — those rely on
+     * budget/quotePrice instead.
+     */
+    private BigDecimal computeTotalAmount(Product product, ServiceEntity service) {
+        if (product == null) {
+            return null;
+        }
+        BigDecimal total = product.getPrice() != null ? product.getPrice() : BigDecimal.ZERO;
+        BigDecimal basePrice = service.getBasePrice();
+        if (basePrice != null && basePrice.compareTo(BigDecimal.ZERO) > 0) {
+            total = total.add(basePrice);
+        }
+        return total;
     }
 
     private BookingResponse toResponse(Booking booking) {
@@ -354,6 +454,12 @@ public class BookingService {
                 .installArea(booking.getInstallArea() != null ? booking.getInstallArea().name() : null)
                 .paymentType(booking.getPaymentType() != null ? booking.getPaymentType().name() : null)
                 .paidAmount(booking.getPaidAmount())
+                .totalAmount(booking.getTotalAmount())
+                .paymentStatus(booking.getPaymentStatus().name())
+                .slipImageUrl(booking.getSlipImageUrl())
+                .slipSubmittedAt(booking.getSlipSubmittedAt())
+                .slipReviewedAt(booking.getSlipReviewedAt())
+                .slipReviewNote(booking.getSlipReviewNote())
                 .createdAt(booking.getCreatedAt())
                 .updatedAt(booking.getUpdatedAt())
                 .statusHistory(history)

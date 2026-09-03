@@ -117,6 +117,13 @@ void main() {
         await tester.tap(find.text('ติดฟิล์มกรองแสง'));
         await tester.pumpAndSettle();
 
+        // A film service asks which area to install before budget.
+        expect(find.text('ต้องการติดฟิล์มบริเวณไหนครับ'), findsOneWidget);
+        expect(find.text('งบประมาณเท่าไหร่ครับ'), findsNothing);
+
+        await tester.tap(find.text('รอบคัน'));
+        await tester.pumpAndSettle();
+
         // Budget prompt should now appear.
         expect(find.text('งบประมาณเท่าไหร่ครับ'), findsOneWidget);
 

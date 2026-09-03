@@ -1,0 +1,20 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "bkkcarglass (Android Emulator)",
+      "request": "launch",
+      "type": "dart",
+      "deviceId": "emulator-5554",
+      "toolArgs": [
+        "--dart-define=API_BASE_URL=http://10.0.2.2:8080"
+      ]
+    },
+    {
+      "name": "bkkcarglass (Chrome)",
+      "request": "launch",
+      "type": "dart",
+      "deviceId": "chrome"
+    }
+  ]
+}

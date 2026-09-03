@@ -64,6 +64,12 @@ class Booking {
     this.budget,
     this.imageUrl,
     this.quotePrice,
+    this.totalAmount,
+    this.paymentStatus = 'AWAITING_PAYMENT',
+    this.slipImageUrl,
+    this.slipSubmittedAt,
+    this.slipReviewedAt,
+    this.slipReviewNote,
     this.notes,
     required this.statusHistory,
   });
@@ -90,6 +96,19 @@ class Booking {
   final double? budget;
   final String? imageUrl;
   final double? quotePrice;
+
+  /// Snapshotted at booking creation from product.price + service.basePrice
+  /// (film/wash bookings only — null for repair, which uses budget/quotePrice
+  /// instead). See `BookingService.computeTotalAmount` on the backend.
+  final double? totalAmount;
+
+  /// `AWAITING_PAYMENT` (no slip yet, or nothing owed) -> `PENDING_REVIEW`
+  /// (slip submitted) -> `VERIFIED`/`REJECTED`.
+  final String paymentStatus;
+  final String? slipImageUrl;
+  final DateTime? slipSubmittedAt;
+  final DateTime? slipReviewedAt;
+  final String? slipReviewNote;
   final String? notes;
   final List<BookingStatusHistoryEntry> statusHistory;
 
@@ -118,6 +137,16 @@ class Booking {
         budget: (json['budget'] as num?)?.toDouble(),
         imageUrl: json['imageUrl'] as String?,
         quotePrice: (json['quotePrice'] as num?)?.toDouble(),
+        totalAmount: (json['totalAmount'] as num?)?.toDouble(),
+        paymentStatus: json['paymentStatus'] as String? ?? 'AWAITING_PAYMENT',
+        slipImageUrl: json['slipImageUrl'] as String?,
+        slipSubmittedAt: json['slipSubmittedAt'] == null
+            ? null
+            : DateTime.parse(json['slipSubmittedAt'] as String),
+        slipReviewedAt: json['slipReviewedAt'] == null
+            ? null
+            : DateTime.parse(json['slipReviewedAt'] as String),
+        slipReviewNote: json['slipReviewNote'] as String?,
         notes: json['notes'] as String?,
         statusHistory: (json['statusHistory'] as List<dynamic>? ?? [])
             .map((e) =>

@@ -40,6 +40,25 @@ final List<Map<String, dynamic>> _filmProductsJson = [
   },
 ];
 
+final List<Map<String, dynamic>> _multiFilmBrandProductsJson = [
+  _filmProductsJson.first,
+  {
+    'id': 2,
+    'serviceId': 1,
+    'serviceName': 'ติดฟิล์มกรองแสง',
+    'name': 'ฟิล์ม Llumar รุ่น Air80',
+    'brand': 'Llumar',
+    'grade': 'Standard',
+    'heatRejectionPct': 50,
+    'uvRejectionPct': 99,
+    'vltPct': 80,
+    'price': 7500,
+    'description': null,
+    'imageUrl': null,
+    'active': true,
+  },
+];
+
 final List<Map<String, dynamic>> _washProductsJson = [
   {
     'id': 2,
@@ -148,6 +167,53 @@ void main() {
   );
 
   testWidgets(
+    'film draft with multiple brands: film list is hidden until a brand '
+    'chip is picked, then only that brand\'s films show',
+    (WidgetTester tester) async {
+      ApiClient.instance = ApiClient(
+        httpClient: _mockClient(products: _multiFilmBrandProductsJson),
+      );
+
+      final draft = BookingDraft(
+        service: ServiceItem(
+          id: 1,
+          name: 'ติดฟิล์มกรองแสง',
+          basePrice: 10000,
+          maxPerSlot: 2,
+        ),
+      );
+
+      await tester.pumpWidget(
+        _wrap(
+          Step2Product(draft: draft, onNext: () {}, onBack: () {}),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Both brand chips are offered, but no film is shown until one is
+      // picked.
+      expect(find.text('02 เลือกแบรนด์'), findsOneWidget);
+      expect(find.text('3M'), findsOneWidget);
+      expect(find.text('Llumar'), findsOneWidget);
+      expect(find.text('กรุณาเลือกแบรนด์ก่อน'), findsOneWidget);
+      expect(find.text('ฟิล์ม 3M รุ่น Crystalline'), findsNothing);
+      expect(find.text('ฟิล์ม Llumar รุ่น Air80'), findsNothing);
+
+      await tester.tap(find.text('3M'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('ฟิล์ม 3M รุ่น Crystalline'), findsOneWidget);
+      expect(find.text('ฟิล์ม Llumar รุ่น Air80'), findsNothing);
+
+      await tester.tap(find.text('Llumar'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('ฟิล์ม 3M รุ่น Crystalline'), findsNothing);
+      expect(find.text('ฟิล์ม Llumar รุ่น Air80'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
     'step3: full slot is disabled; selecting an available slot enables '
     '"ยืนยันเวลา"',
     (WidgetTester tester) async {
@@ -174,8 +240,10 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      // Pick the first day card (today) to load slots.
-      await tester.tap(find.text('${DateTime.now().day}').first);
+      // Pick today's cell in the calendar to load slots.
+      final todayCellFinder = find.text('${DateTime.now().day}').first;
+      await tester.ensureVisible(todayCellFinder);
+      await tester.tap(todayCellFinder);
       await tester.pumpAndSettle();
 
       final confirmButtonFinder = find.widgetWithText(
@@ -187,7 +255,9 @@ void main() {
 
       // The full 10:30 slot cannot be tapped.
       expect(find.text('เต็ม'), findsOneWidget);
-      await tester.tap(find.text('10:30'));
+      final fullSlotFinder = find.text('10:30');
+      await tester.ensureVisible(fullSlotFinder);
+      await tester.tap(fullSlotFinder);
       await tester.pump();
       expect(
         tester.widget<FilledButton>(confirmButtonFinder).onPressed,
@@ -195,7 +265,9 @@ void main() {
       );
 
       // Selecting the available 09:00 slot enables the button.
-      await tester.tap(find.text('09:00'));
+      final availableSlotFinder = find.text('09:00');
+      await tester.ensureVisible(availableSlotFinder);
+      await tester.tap(availableSlotFinder);
       await tester.pump();
       expect(
         tester.widget<FilledButton>(confirmButtonFinder).onPressed,

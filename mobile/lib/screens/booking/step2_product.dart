@@ -4,23 +4,15 @@ import 'package:image_picker/image_picker.dart';
 import '../../api/api_client.dart';
 import '../../api/catalog_service.dart';
 import '../../models/booking_draft.dart';
+import '../../models/install_area.dart';
 import '../../models/product.dart';
 import '../../theme/app_theme.dart';
 
 enum _BookingMode { film, wash, repair }
 
-class _InstallAreaOption {
-  const _InstallAreaOption(this.label, this.value);
-  final String label;
-  final String value;
-}
-
-const List<_InstallAreaOption> _installAreaOptions = [
-  _InstallAreaOption('รอบคัน', 'FULL'),
-  _InstallAreaOption('กระจกหน้า-หลัง', 'FRONT_BACK'),
-  _InstallAreaOption('กระจกหน้า', 'FRONT'),
-  _InstallAreaOption('กระจกหลัง', 'BACK'),
-];
+/// Label shown for a film whose `brand` the admin hasn't set yet — groups
+/// those products under one selectable chip instead of hiding them.
+const String _unspecifiedBrand = 'ไม่ระบุแบรนด์';
 
 /// Step 2/5 ของ booking flow (Figma page 10): เลือกสินค้า/รูป ตามโหมดของ
 /// บริการที่เลือกไว้ใน step 1 (พิจารณาจากชื่อบริการ) —
@@ -55,6 +47,12 @@ class _Step2ProductState extends State<Step2Product> {
   bool _loadingProducts = false;
   String? _loadError;
 
+  /// Film mode only: brand chosen in "02 เลือกแบรนด์" before the film list
+  /// (filtered to that brand) appears in "03 เลือกฟิล์ม". Restored from an
+  /// already-selected product (e.g. the chatbot's "จองตัวนี้" recommendation)
+  /// so returning users don't lose their pick.
+  String? _selectedBrand;
+
   late final TextEditingController _budgetController = TextEditingController(
     text: widget.draft.budget != null
         ? widget.draft.budget!.toStringAsFixed(0)
@@ -74,6 +72,10 @@ class _Step2ProductState extends State<Step2Product> {
   @override
   void initState() {
     super.initState();
+    final existingProduct = widget.draft.product;
+    if (existingProduct != null) {
+      _selectedBrand = _brandOf(existingProduct);
+    }
     if (_mode != _BookingMode.repair) {
       _loadProducts();
     }
@@ -117,6 +119,21 @@ class _Step2ProductState extends State<Step2Product> {
   void _selectArea(String value) {
     setState(() => widget.draft.installArea = value);
   }
+
+  /// Switching brand clears any film picked under the previous brand so the
+  /// draft never ends up holding a product that no longer matches "02
+  /// เลือกแบรนด์"'s selection.
+  void _selectBrand(String brand) {
+    setState(() {
+      _selectedBrand = brand;
+      final currentProduct = widget.draft.product;
+      if (currentProduct != null && _brandOf(currentProduct) != brand) {
+        widget.draft.product = null;
+      }
+    });
+  }
+
+  String _brandOf(Product product) => product.brand ?? _unspecifiedBrand;
 
   void _selectProduct(Product product) {
     setState(() => widget.draft.product = product);
@@ -210,9 +227,18 @@ class _Step2ProductState extends State<Step2Product> {
           const SizedBox(height: 12),
           _buildAreaChips(),
           const SizedBox(height: 24),
-          const _SectionTitle('02 เลือกฟิล์ม'),
+          const _SectionTitle('02 เลือกแบรนด์'),
           const SizedBox(height: 12),
-          _buildProductList(showSpecs: true),
+          _buildBrandChips(),
+          const SizedBox(height: 24),
+          const _SectionTitle('03 เลือกฟิล์ม'),
+          const SizedBox(height: 12),
+          _selectedBrand == null
+              ? const Text(
+                  'กรุณาเลือกแบรนด์ก่อน',
+                  style: TextStyle(color: Colors.black54),
+                )
+              : _buildProductList(showSpecs: true, brand: _selectedBrand),
         ];
       case _BookingMode.wash:
         return [
@@ -237,7 +263,7 @@ class _Step2ProductState extends State<Step2Product> {
     return Wrap(
       spacing: 8,
       runSpacing: 8,
-      children: _installAreaOptions.map((opt) {
+      children: installAreaOptions.map((opt) {
         final selected = widget.draft.installArea == opt.value;
         return ChoiceChip(
           label: Text(opt.label),
@@ -249,21 +275,65 @@ class _Step2ProductState extends State<Step2Product> {
     );
   }
 
-  Widget _buildProductList({required bool showSpecs}) {
+  /// Distinct brands among the loaded film products, in first-seen order,
+  /// with unbranded products grouped under [_unspecifiedBrand] so nothing
+  /// is hidden while admins are still filling in `brand` values.
+  List<String> get _availableBrands {
+    final brands = <String>[];
+    for (final product in _products) {
+      final brand = _brandOf(product);
+      if (!brands.contains(brand)) brands.add(brand);
+    }
+    return brands;
+  }
+
+  Widget _buildBrandChips() {
     if (_loadingProducts) {
       return const Center(child: CircularProgressIndicator());
     }
     if (_loadError != null) {
       return Text(_loadError!, style: const TextStyle(color: Colors.red));
     }
-    if (_products.isEmpty) {
+    final brands = _availableBrands;
+    if (brands.isEmpty) {
+      return const Text(
+        'ยังไม่มีฟิล์มในระบบ',
+        style: TextStyle(color: Colors.black54),
+      );
+    }
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: brands.map((brand) {
+        final selected = _selectedBrand == brand;
+        return ChoiceChip(
+          label: Text(brand),
+          selected: selected,
+          selectedColor: AppColors.surfaceLight,
+          onSelected: (_) => _selectBrand(brand),
+        );
+      }).toList(),
+    );
+  }
+
+  Widget _buildProductList({required bool showSpecs, String? brand}) {
+    if (_loadingProducts) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (_loadError != null) {
+      return Text(_loadError!, style: const TextStyle(color: Colors.red));
+    }
+    final products = brand == null
+        ? _products
+        : _products.where((p) => _brandOf(p) == brand).toList();
+    if (products.isEmpty) {
       return const Text(
         'ไม่พบรายการ',
         style: TextStyle(color: Colors.black54),
       );
     }
     return Column(
-      children: _products
+      children: products
           .map(
             (p) => _ProductCard(
               product: p,

@@ -78,6 +78,16 @@ class BookingService {
     return Booking.fromJson(data as Map<String, dynamic>);
   }
 
+  /// `POST /api/bookings/{id}/payment-slip` body `{imageUrl, amount}` →
+  /// `BookingResponse` with `paymentStatus` now `PENDING_REVIEW`.
+  Future<Booking> submitPaymentSlip(int bookingId, String imageUrl, double amount) async {
+    final data = await ApiClient.instance.post('/api/bookings/$bookingId/payment-slip', {
+      'imageUrl': imageUrl,
+      'amount': amount,
+    });
+    return Booking.fromJson(data as Map<String, dynamic>);
+  }
+
   /// `date` as `YYYY-MM-DD`, independent of locale (the backend expects a
   /// plain ISO calendar date, not a locale-formatted string).
   String _formatDate(DateTime date) {

@@ -22,6 +22,12 @@ class BookingDraft {
   /// flow (which skips step 4 entirely), so [BookingService.createBooking]
   /// knows to omit `paymentType`/`paidAmount` from the request body.
   double? paidAmount;
+
+  /// 'CASH' (จ่ายที่ร้าน) or 'QR' (พร้อมเพย์) — chosen on step 4. Purely a
+  /// client-side routing hint for [Step5Success] (show the QR/slip-upload
+  /// card or not); the backend doesn't need it since `paymentType`/
+  /// `paidAmount` already fully describe what's owed regardless of channel.
+  String paymentChannel = 'CASH';
 }
 
 /// The three booking "modes" derived from the selected service's name —

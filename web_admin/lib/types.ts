@@ -24,6 +24,12 @@ export interface Booking {
   budget: number | null;
   imageUrl: string | null;
   quotePrice: number | null;
+  totalAmount: number | null;
+  paymentStatus: 'AWAITING_PAYMENT' | 'PENDING_REVIEW' | 'VERIFIED' | 'REJECTED';
+  slipImageUrl: string | null;
+  slipSubmittedAt: string | null;
+  slipReviewedAt: string | null;
+  slipReviewNote: string | null;
   notes: string | null;
   orderCode: string | null;
   vehicleId: number | null;

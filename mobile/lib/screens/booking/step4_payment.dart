@@ -10,6 +10,12 @@ import '../../theme/app_theme.dart';
 
 final NumberFormat _priceFormat = NumberFormat('#,###');
 
+/// TEMPORARY test hook — forces the QR-channel amount to 1 บาท so a real
+/// PromptPay transfer can be made to test Gemini slip verification without
+/// spending real money on a full deposit/booking amount. Flip back to
+/// `false` before real use.
+const bool kDebugForceOneBahtForQrTesting = false;
+
 const Map<String, String> _installAreaLabels = {
   'FULL': 'รอบคัน',
   'FRONT_BACK': 'กระจกหน้า-หลัง',
@@ -23,8 +29,10 @@ const Map<String, String> _installAreaLabels = {
 /// - การ์ดสรุป (ของที่เลือก + "วันที่ติดตั้ง: {วันเวลาไทย}")
 /// - "01 รายการค่าใช้จ่าย": ราคาสินค้า/แพ็กเกจ + "ค่าช่างติดตั้ง" (เมื่อ
 ///   `service.basePrice > 0`) + "ยอดรวมทั้งหมด"
-/// - "02 เลือกวิธีชำระเงิน": มัดจำ 30% (default) / ชำระเต็มจำนวน
-/// - "03 ช่องทางชำระเงิน": ข้อความชำระเงินสด/โอนที่ร้าน (ระบบออนไลน์เร็วๆ นี้)
+/// - "02 ช่องทางชำระเงิน": เงินสด (จ่ายที่ร้าน) / QR พร้อมเพย์ — เลือก QR
+///   แล้ว [Step5Success] จะโชว์การ์ด QR+แนบสลิปให้ต่อ (ดู [BookingDraft.paymentChannel])
+/// - "03 เลือกวิธีชำระเงิน": มัดจำ 30% (default) / ชำระเต็มจำนวน — เงินสด
+///   มีแค่ตัวเลือกชำระเต็มจำนวน (จ่ายครบตอนไปร้านอยู่แล้ว ไม่มีมัดจำระยะไกล)
 /// - ปุ่ม "ยืนยันการชำระเงิน" → `BookingService.createBooking` พร้อม
 ///   `paymentType`/`paidAmount` ตามที่เลือก
 class Step4Payment extends StatefulWidget {
@@ -46,6 +54,7 @@ class Step4Payment extends StatefulWidget {
 
 class _Step4PaymentState extends State<Step4Payment> {
   String _paymentType = 'DEPOSIT';
+  String _paymentChannel = 'CASH';
   bool _submitting = false;
 
   @override
@@ -55,6 +64,8 @@ class _Step4PaymentState extends State<Step4Payment> {
     // bundled synchronously, so this is safe to call without awaiting.
     initializeDateFormatting('th');
     _paymentType = widget.draft.paymentType;
+    _paymentChannel = widget.draft.paymentChannel;
+    if (_paymentChannel == 'CASH') _paymentType = 'FULL';
   }
 
   double get _productPrice => widget.draft.product?.price ?? 0;
@@ -68,8 +79,15 @@ class _Step4PaymentState extends State<Step4Payment> {
 
   double get _depositAmount => _roundTo2(_total * 0.3);
 
-  double get _selectedAmount =>
-      _paymentType == 'DEPOSIT' ? _depositAmount : _total;
+  bool get _debugOneBahtActive =>
+      kDebugForceOneBahtForQrTesting && _paymentChannel == 'QR';
+
+  double _amountFor(String paymentType) {
+    if (_debugOneBahtActive) return 1;
+    return paymentType == 'DEPOSIT' ? _depositAmount : _total;
+  }
+
+  double get _selectedAmount => _amountFor(_paymentType);
 
   double _roundTo2(double value) => (value * 100).round() / 100;
 
@@ -96,10 +114,9 @@ class _Step4PaymentState extends State<Step4Payment> {
     setState(() => _submitting = true);
     widget.draft.paymentType = _paymentType;
     widget.draft.paidAmount = _selectedAmount;
+    widget.draft.paymentChannel = _paymentChannel;
     try {
-      final booking = await BookingService.instance.createBooking(
-        widget.draft,
-      );
+      final booking = await BookingService.instance.createBooking(widget.draft);
       if (!mounted) return;
       widget.onBookingCreated(booking);
     } on ApiException catch (e) {
@@ -137,18 +154,18 @@ class _Step4PaymentState extends State<Step4Payment> {
                 _buildCostCard(),
                 const SizedBox(height: 24),
                 const Text(
-                  '02 เลือกวิธีชำระเงิน',
-                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
-                ),
-                const SizedBox(height: 12),
-                _buildPaymentOptions(),
-                const SizedBox(height: 24),
-                const Text(
-                  '03 ช่องทางชำระเงิน',
+                  '02 ช่องทางชำระเงิน',
                   style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
                 ),
                 const SizedBox(height: 12),
                 _buildPaymentChannelCard(),
+                const SizedBox(height: 24),
+                const Text(
+                  '03 เลือกวิธีชำระเงิน',
+                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
+                ),
+                const SizedBox(height: 12),
+                _buildPaymentOptions(),
               ],
             ),
           ),
@@ -227,18 +244,30 @@ class _Step4PaymentState extends State<Step4Payment> {
   }
 
   Widget _buildPaymentOptions() {
+    // Cash is paid in person at the shop on install day — a remote deposit
+    // only makes sense when paying online via QR, so cash only offers full
+    // payment.
+    if (_paymentChannel == 'CASH') {
+      return _PaymentOptionCard(
+        title: 'ชำระเต็มจำนวน',
+        subtitle: '${_priceFormat.format(_amountFor('FULL'))} บาท',
+        selected: true,
+        onTap: () {},
+      );
+    }
     return Column(
       children: [
         _PaymentOptionCard(
           title: 'มัดจำ 30%',
-          subtitle: 'ชำระวันนี้ ${_priceFormat.format(_depositAmount)} บาท',
+          subtitle:
+              'ชำระวันนี้ ${_priceFormat.format(_amountFor('DEPOSIT'))} บาท',
           selected: _paymentType == 'DEPOSIT',
           onTap: () => setState(() => _paymentType = 'DEPOSIT'),
         ),
         const SizedBox(height: 12),
         _PaymentOptionCard(
           title: 'ชำระเต็มจำนวน',
-          subtitle: '${_priceFormat.format(_total)} บาท',
+          subtitle: '${_priceFormat.format(_amountFor('FULL'))} บาท',
           selected: _paymentType == 'FULL',
           onTap: () => setState(() => _paymentType = 'FULL'),
         ),
@@ -247,24 +276,28 @@ class _Step4PaymentState extends State<Step4Payment> {
   }
 
   Widget _buildPaymentChannelCard() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.grey.shade100,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: const Row(
-        children: [
-          Icon(Icons.info_outline, color: AppColors.primaryDark),
-          SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              'ชำระเงินสด/โอนที่ร้านในวันติดตั้ง (ระบบชำระออนไลน์เร็วๆ นี้)',
-              style: TextStyle(fontSize: 13),
-            ),
-          ),
-        ],
-      ),
+    return Column(
+      children: [
+        _PaymentOptionCard(
+          title: 'เงินสด',
+          subtitle: 'ชำระเงินสด/โอนที่ร้านในวันติดตั้ง',
+          selected: _paymentChannel == 'CASH',
+          // Cash only offers full payment (see _buildPaymentOptions) —
+          // force it here too so _selectedAmount is correct even if the
+          // user never revisits section 03 after switching to cash.
+          onTap: () => setState(() {
+            _paymentChannel = 'CASH';
+            _paymentType = 'FULL';
+          }),
+        ),
+        const SizedBox(height: 12),
+        _PaymentOptionCard(
+          title: 'QR พร้อมเพย์',
+          subtitle: 'สแกนจ่ายตอนนี้ แล้วแนบสลิปให้ร้านตรวจสอบ',
+          selected: _paymentChannel == 'QR',
+          onTap: () => setState(() => _paymentChannel = 'QR'),
+        ),
+      ],
     );
   }
 
@@ -337,10 +370,7 @@ class _PaymentOptionCard extends StatelessWidget {
                   ),
                   Text(
                     subtitle,
-                    style: const TextStyle(
-                      fontSize: 13,
-                      color: Colors.black54,
-                    ),
+                    style: const TextStyle(fontSize: 13, color: Colors.black54),
                   ),
                 ],
               ),

@@ -126,6 +126,51 @@ void main() {
         expect(find.byKey(const ValueKey('unread-dot-2')), findsNothing);
       },
     );
+
+    testWidgets(
+      'reload() re-fetches /api/notifications/me and renders a '
+      'notification that arrived after the initial load — this is what '
+      'MainShell calls when the notifications tab is switched to, or when '
+      'a live push arrives, so a notification created while the screen was '
+      'already mounted does not stay invisible until app restart',
+      (WidgetTester tester) async {
+        final now = DateTime.now();
+        var returnLiveNotification = false;
+        ApiClient.instance = ApiClient(
+          httpClient: MockClient((request) async {
+            if (request.method == 'GET' &&
+                request.url.path == '/api/notifications/me') {
+              if (!returnLiveNotification) {
+                return _jsonResponse(<dynamic>[]);
+              }
+              return _jsonResponse([
+                _notificationJson(
+                  id: 9,
+                  title: 'งานของคุณเสร็จแล้ว',
+                  body: 'ช่างอัปเดตสถานะเป็นเสร็จสิ้น',
+                  createdAt: now.toIso8601String(),
+                  readAt: null,
+                ),
+              ]);
+            }
+            return http.Response('Not found', 404);
+          }),
+        );
+
+        final key = GlobalKey<NotificationsScreenState>();
+        await tester.pumpWidget(_wrap(NotificationsScreen(key: key)));
+        await tester.pumpAndSettle();
+
+        expect(find.text('ยังไม่มีการแจ้งเตือน'), findsOneWidget);
+        expect(find.text('งานของคุณเสร็จแล้ว'), findsNothing);
+
+        returnLiveNotification = true;
+        await key.currentState!.reload();
+        await tester.pumpAndSettle();
+
+        expect(find.text('งานของคุณเสร็จแล้ว'), findsOneWidget);
+      },
+    );
   });
 
   group('ProfileScreen', () {

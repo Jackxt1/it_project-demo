@@ -52,7 +52,8 @@ class Step3Schedule extends StatefulWidget {
 }
 
 class _Step3ScheduleState extends State<Step3Schedule> {
-  late final List<DateTime> _days;
+  late final DateTime _today;
+  late final DateTime _lastSelectableDate;
   DateTime? _selectedDate;
   String? _selectedSlot;
 
@@ -74,23 +75,22 @@ class _Step3ScheduleState extends State<Step3Schedule> {
     // afterwards without awaiting anything or gating the first build.
     initializeDateFormatting('th');
 
-    final today = DateTime.now();
-    final todayMidnight = DateTime(today.year, today.month, today.day);
-    _days = List.generate(14, (i) => todayMidnight.add(Duration(days: i)));
+    final now = DateTime.now();
+    _today = DateTime(now.year, now.month, now.day);
+    // A generous one-year booking horizon — the calendar itself lets staff
+    // and customers browse month to month, this just bounds how far ahead
+    // slots can be requested at all.
+    _lastSelectableDate = DateTime(now.year + 1, now.month, now.day);
 
     final restoredDate = widget.draft.date;
-    _selectedDate =
-        restoredDate != null && _days.any((d) => _isSameDay(d, restoredDate))
-        ? restoredDate
+    _selectedDate = restoredDate != null && !restoredDate.isBefore(_today)
+        ? DateTime(restoredDate.year, restoredDate.month, restoredDate.day)
         : null;
     _selectedSlot = widget.draft.timeSlot;
     if (_selectedDate != null) {
       _loadSlots(_selectedDate!);
     }
   }
-
-  bool _isSameDay(DateTime a, DateTime b) =>
-      a.year == b.year && a.month == b.month && a.day == b.day;
 
   void _selectDate(DateTime date) {
     setState(() {
@@ -214,7 +214,7 @@ class _Step3ScheduleState extends State<Step3Schedule> {
                   style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
                 ),
                 const SizedBox(height: 12),
-                _buildDateStrip(),
+                _buildCalendar(),
                 const SizedBox(height: 24),
                 const Text(
                   '02 เลือกเวลา',
@@ -252,55 +252,19 @@ class _Step3ScheduleState extends State<Step3Schedule> {
     );
   }
 
-  Widget _buildDateStrip() {
-    return SizedBox(
-      height: 76,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        itemCount: _days.length,
-        separatorBuilder: (context, index) => const SizedBox(width: 8),
-        itemBuilder: (context, index) {
-          final day = _days[index];
-          final selected =
-              _selectedDate != null && _isSameDay(day, _selectedDate!);
-          final dayLabel = DateFormat('EEEEE', 'th').format(day);
-          return GestureDetector(
-            onTap: () => _selectDate(day),
-            child: Container(
-              width: 56,
-              decoration: BoxDecoration(
-                color: selected ? AppColors.primaryDark : Colors.white,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: selected ? AppColors.primaryDark : Colors.grey.shade300,
-                ),
-              ),
-              alignment: Alignment.center,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    dayLabel,
-                    style: TextStyle(
-                      color: selected ? Colors.white : Colors.black54,
-                      fontSize: 12,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    '${day.day}',
-                    style: TextStyle(
-                      color: selected ? Colors.white : Colors.black87,
-                      fontWeight: FontWeight.w700,
-                      fontSize: 16,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          );
-        },
-      ),
+  /// Full month-grid calendar (Flutter's built-in [CalendarDatePicker], no
+  /// extra dependency needed) so customers can browse forward/back by month
+  /// instead of only the next 14 days. `key` forces a fresh widget whenever
+  /// the restored/selected date changes externally (e.g. going back to step
+  /// 2 and returning) so the calendar's own internal "displayed month"
+  /// state doesn't go stale.
+  Widget _buildCalendar() {
+    return CalendarDatePicker(
+      key: ValueKey(_selectedDate),
+      initialDate: _selectedDate ?? _today,
+      firstDate: _today,
+      lastDate: _lastSelectableDate,
+      onDateChanged: _selectDate,
     );
   }
 

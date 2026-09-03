@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 
+import '../api/auth_service.dart';
 import '../api/notification_service.dart';
+import '../models/notification_item.dart';
+import '../models/product.dart';
 import '../models/service_item.dart';
 import '../theme/app_theme.dart';
 import 'booking/booking_flow.dart';
@@ -10,9 +13,15 @@ import 'notifications/notifications_screen.dart';
 import 'profile/profile_screen.dart';
 
 class MainShell extends StatefulWidget {
-  const MainShell({super.key, this.pages});
+  const MainShell({super.key, this.pages, this.notificationSocket});
 
   final List<Widget>? pages;
+
+  /// Injectable live-notification connection. Defaults to a real STOMP-backed
+  /// connector at runtime; widget tests pass a no-op fake so they never open
+  /// a socket. When the signed-in user's id is unknown (no session) the shell
+  /// simply never connects.
+  final NotificationSocketConnector? notificationSocket;
 
   @override
   State<MainShell> createState() => _MainShellState();
@@ -23,11 +32,70 @@ class _MainShellState extends State<MainShell> {
   int _unreadNotificationCount = 0;
   final GlobalKey<BookingsScreenState> _bookingsKey =
       GlobalKey<BookingsScreenState>();
+  final GlobalKey<NotificationsScreenState> _notificationsKey =
+      GlobalKey<NotificationsScreenState>();
+
+  NotificationSocketConnector? _notificationSocket;
 
   @override
   void initState() {
     super.initState();
     _loadUnreadNotificationCount();
+    _connectNotificationSocket();
+  }
+
+  @override
+  void dispose() {
+    _notificationSocket?.dispose();
+    super.dispose();
+  }
+
+  /// Subscribes to live notifications pushed over STOMP so an admin/technician
+  /// status change bumps the badge (and shows a banner) immediately, without
+  /// waiting for the user to reopen the notifications tab. No-op when there's
+  /// no signed-in user id to scope the subscription to.
+  void _connectNotificationSocket() {
+    final userId = AuthService.instance.session?.userId;
+    if (userId == null) return;
+    final socket =
+        widget.notificationSocket ?? StompNotificationSocketConnector();
+    _notificationSocket = socket;
+    socket.connect(userId: userId, onNotification: _onLiveNotification);
+  }
+
+  void _onLiveNotification(NotificationItem notification) {
+    if (!mounted) return;
+    setState(() => _unreadNotificationCount += 1);
+    // The notifications tab may already be mounted (it lives inside an
+    // IndexedStack and never rebuilds on its own), so without this the new
+    // item stays invisible there until the next full app restart even
+    // though the toast below just announced it.
+    _notificationsKey.currentState?.reload();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        backgroundColor: AppColors.primary,
+        // Floating + bottom margin keeps the toast clear of the docked FAB
+        // and the bottom navigation bar instead of overlapping them.
+        behavior: SnackBarBehavior.floating,
+        margin: const EdgeInsets.only(left: 16, right: 16, bottom: 96),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              notification.title,
+              style: const TextStyle(fontWeight: FontWeight.w700),
+            ),
+            Text(notification.body),
+          ],
+        ),
+        action: SnackBarAction(
+          label: 'ดู',
+          textColor: Colors.white,
+          onPressed: () => _switchToTab(2),
+        ),
+      ),
+    );
   }
 
   /// Best-effort initial fetch just to seed the bottom-nav badge; the count
@@ -63,6 +131,21 @@ class _MainShellState extends State<MainShell> {
     }
   }
 
+  /// Tapping a "บริการยอดนิยม" product card jumps straight into that
+  /// product's booking flow with both the service and the product itself
+  /// preselected (skips step 2's picker), same as the chatbot's "จองตัวนี้".
+  Future<void> _handleBookProduct(ServiceItem service, Product product) async {
+    final result = await Navigator.of(context).push<String>(
+      MaterialPageRoute(
+        builder: (_) =>
+            BookingFlowScreen(initialService: service, initialProduct: product),
+      ),
+    );
+    if (result == 'bookings' && mounted) {
+      _switchToTab(1);
+    }
+  }
+
   void _goToBookingsTab() => _switchToTab(1);
 
   /// Switches the visible tab and, when landing on the bookings tab,
@@ -78,16 +161,22 @@ class _MainShellState extends State<MainShell> {
     setState(() => _currentIndex = index);
     if (index == 1) {
       _bookingsKey.currentState?.reload();
+    } else if (index == 2) {
+      _notificationsKey.currentState?.reload();
     }
   }
 
   List<Widget> _defaultPages() => [
     HomeScreen(
       onBookService: _handleBookService,
+      onBookProduct: _handleBookProduct,
       onTrackStatus: _goToBookingsTab,
     ),
     BookingsScreen(key: _bookingsKey),
-    NotificationsScreen(onUnreadCountChanged: _onUnreadCountChanged),
+    NotificationsScreen(
+      key: _notificationsKey,
+      onUnreadCountChanged: _onUnreadCountChanged,
+    ),
     ProfileScreen(onViewBookingHistory: _goToBookingsTab),
   ];
 

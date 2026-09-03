@@ -8,6 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:bkk_customer/api/api_client.dart';
 import 'package:bkk_customer/api/auth_service.dart';
+import 'package:bkk_customer/models/product.dart';
 import 'package:bkk_customer/models/service_item.dart';
 import 'package:bkk_customer/screens/home/home_screen.dart';
 import 'package:bkk_customer/theme/app_theme.dart';
@@ -70,6 +71,15 @@ final List<Map<String, dynamic>> _productsJson = [
     'imageUrl': null,
     'active': true,
   },
+  {
+    'id': 12,
+    'serviceId': 3,
+    'serviceName': 'ล้างรถ',
+    'name': 'ล้างพรีเมี่ยม',
+    'price': 500,
+    'imageUrl': null,
+    'active': true,
+  },
 ];
 
 http.Client _mockClient() => MockClient((request) async {
@@ -78,6 +88,16 @@ http.Client _mockClient() => MockClient((request) async {
       }
       if (request.url.path == '/api/products') {
         return _jsonResponse(_productsJson);
+      }
+      if (request.url.path.startsWith('/api/reviews/service/')) {
+        final serviceId =
+            int.tryParse(request.url.pathSegments.last) ?? 0;
+        return _jsonResponse({
+          'serviceId': serviceId,
+          'averageRating': 0.0,
+          'totalReviews': 0,
+          'reviews': <dynamic>[],
+        });
       }
       return http.Response('Not found', 404);
     });
@@ -159,7 +179,7 @@ void main() {
     expect(tapped?.name, 'ล้างรถ');
   });
 
-  testWidgets('tapping "รีวิว" shows a coming-soon SnackBar instead',
+  testWidgets('tapping "รีวิว" opens the reviews screen',
       (WidgetTester tester) async {
     _growSurface(tester);
     var bookCalled = false;
@@ -170,10 +190,11 @@ void main() {
     await tester.pumpAndSettle();
 
     await tester.tap(find.text('รีวิว'));
-    await tester.pump();
+    await tester.pumpAndSettle();
 
     expect(bookCalled, isFalse);
-    expect(find.text('เร็วๆ นี้'), findsOneWidget);
+    // ReviewsScreen's AppBar title — confirms navigation instead of a booking.
+    expect(find.text('รีวิวจากลูกค้า'), findsOneWidget);
   });
 
   testWidgets('search field filters the popular products list',
@@ -190,5 +211,107 @@ void main() {
 
     expect(find.text('ฟิล์ม 3M รุ่น Crystalline'), findsNothing);
     expect(find.text('ฟิล์ม Llumar รุ่น Air80'), findsOneWidget);
+  });
+
+  testWidgets(
+      'promo carousel first slide "จองเลย" routes to the matched service',
+      (WidgetTester tester) async {
+    _growSurface(tester);
+    ServiceItem? tapped;
+
+    await tester.pumpWidget(_wrap(HomeScreen(
+      onBookService: (service) => tapped = service,
+    )));
+    await tester.pumpAndSettle();
+
+    // The promo slide's subtitle is unique — its title text also matches
+    // the "บริการด่วน" quick-action card label ("ติดฟิล์มกรองแสง").
+    expect(find.text('กันร้อน กันยูวี เพิ่มความเป็นส่วนตัว'), findsOneWidget);
+
+    await tester.tap(find.text('จองเลย').first);
+    await tester.pumpAndSettle();
+
+    expect(tapped?.name, 'ติดฟิล์ม');
+  });
+
+  testWidgets(
+      'swiping the promo carousel to the next slide routes "จองเลย" to that slide\'s service',
+      (WidgetTester tester) async {
+    _growSurface(tester);
+    ServiceItem? tapped;
+
+    await tester.pumpWidget(_wrap(HomeScreen(
+      onBookService: (service) => tapped = service,
+    )));
+    await tester.pumpAndSettle();
+
+    await tester.drag(find.byType(PageView), const Offset(-800, 0));
+    await tester.pumpAndSettle();
+
+    expect(find.text('ซ่อมรอยร้าวกระจก'), findsOneWidget);
+
+    await tester.tap(find.text('จองเลย').first);
+    await tester.pumpAndSettle();
+
+    expect(tapped?.name, 'ซ่อม');
+  });
+
+  testWidgets(
+      'swiping the promo carousel twice reaches the car-wash slide and routes correctly',
+      (WidgetTester tester) async {
+    _growSurface(tester);
+    ServiceItem? tapped;
+
+    await tester.pumpWidget(_wrap(HomeScreen(
+      onBookService: (service) => tapped = service,
+    )));
+    await tester.pumpAndSettle();
+
+    await tester.drag(find.byType(PageView), const Offset(-800, 0));
+    await tester.pumpAndSettle();
+    await tester.drag(find.byType(PageView), const Offset(-800, 0));
+    await tester.pumpAndSettle();
+
+    expect(find.text('ล้างรถครบวงจร'), findsOneWidget);
+
+    await tester.tap(find.text('จองเลย').first);
+    await tester.pumpAndSettle();
+
+    expect(tapped?.name, 'ล้างรถ');
+  });
+
+  testWidgets(
+      'tapping a popular-product card calls onBookProduct with its service and itself',
+      (WidgetTester tester) async {
+    _growSurface(tester);
+    ServiceItem? bookedService;
+    Product? bookedProduct;
+
+    await tester.pumpWidget(_wrap(HomeScreen(
+      onBookProduct: (service, product) {
+        bookedService = service;
+        bookedProduct = product;
+      },
+    )));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('ฟิล์ม 3M รุ่น Crystalline'));
+    await tester.pumpAndSettle();
+
+    expect(bookedService?.name, 'ติดฟิล์ม');
+    expect(bookedProduct?.name, 'ฟิล์ม 3M รุ่น Crystalline');
+  });
+
+  testWidgets(
+      '"สินค้ายอดนิยม" shows only film products, not other services\' products',
+      (WidgetTester tester) async {
+    _growSurface(tester);
+    await tester.pumpWidget(_wrap(const HomeScreen()));
+    await tester.pumpAndSettle();
+
+    expect(find.text('สินค้ายอดนิยม'), findsOneWidget);
+    expect(find.text('ฟิล์ม 3M รุ่น Crystalline'), findsOneWidget);
+    expect(find.text('ฟิล์ม Llumar รุ่น Air80'), findsOneWidget);
+    expect(find.text('ล้างพรีเมี่ยม'), findsNothing);
   });
 }

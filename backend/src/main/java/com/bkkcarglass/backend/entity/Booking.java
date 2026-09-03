@@ -79,6 +79,33 @@ public class Booking {
     @Column(name = "quote_price", precision = 10, scale = 2)
     private BigDecimal quotePrice;
 
+    /**
+     * Snapshotted at creation time (product.price + service.basePrice, when
+     * there's a product) rather than recomputed on read, so a later catalog
+     * price change never retroactively changes an already-placed booking's
+     * agreed total. Null for repair bookings, which have no product — use
+     * quotePrice/budget for those instead.
+     */
+    @Column(name = "total_amount", precision = 10, scale = 2)
+    private BigDecimal totalAmount;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "payment_status", length = 20, nullable = false)
+    @Builder.Default
+    private PaymentStatus paymentStatus = PaymentStatus.AWAITING_PAYMENT;
+
+    @Column(name = "slip_image_url", length = 500)
+    private String slipImageUrl;
+
+    @Column(name = "slip_submitted_at")
+    private LocalDateTime slipSubmittedAt;
+
+    @Column(name = "slip_reviewed_at")
+    private LocalDateTime slipReviewedAt;
+
+    @Column(name = "slip_review_note", columnDefinition = "TEXT")
+    private String slipReviewNote;
+
     @Column(columnDefinition = "TEXT")
     private String notes;
 

@@ -21,10 +21,15 @@ class NotificationsScreen extends StatefulWidget {
   final ValueChanged<int>? onUnreadCountChanged;
 
   @override
-  State<NotificationsScreen> createState() => _NotificationsScreenState();
+  State<NotificationsScreen> createState() => NotificationsScreenState();
 }
 
-class _NotificationsScreenState extends State<NotificationsScreen> {
+/// Public so [MainShell] can hold a `GlobalKey<NotificationsScreenState>`
+/// and call [reload] whenever the notifications tab is switched to, or a
+/// live push arrives — the tab body lives inside an `IndexedStack` and stays
+/// mounted, so without this a notification created while the screen was
+/// already built would stay invisible until the next full app restart.
+class NotificationsScreenState extends State<NotificationsScreen> {
   List<NotificationItem>? _notifications;
   String? _error;
 
@@ -34,6 +39,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     initializeDateFormatting('th');
     _load();
   }
+
+  Future<void> reload() => _load();
 
   Future<void> _load() async {
     setState(() => _error = null);

@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import '../../models/booking.dart';
 import '../../models/booking_draft.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/payment_slip_card.dart';
 
 final NumberFormat _priceFormat = NumberFormat('#,###');
 
@@ -15,10 +16,16 @@ const Map<String, String> _installAreaLabels = {
   'BACK': 'กระจกหลัง',
 };
 
-/// Step 5/5 ของ booking flow (Figma page 13): หน้าสำเร็จหลังยิงจองจริง —
-/// แสดงหลังทั้งโหมดฟิล์ม/ล้างรถ (มัดจำ/ชำระเต็มจำนวนแล้ว) และโหมดซ่อมกระจก
-/// (ส่งคำจองแล้ว รอใบเสนอราคา).
-class Step5Success extends StatelessWidget {
+/// Step 5/5 ของ booking flow (Figma page 13): หน้าหลังยิงจองจริง — แสดงหลัง
+/// ทั้งโหมดฟิล์ม/ล้างรถและโหมดซ่อมกระจก (ส่งคำจองแล้ว รอใบเสนอราคา).
+///
+/// เงินสด/ซ่อมกระจก: การจองเสร็จสมบูรณ์ทันทีที่มาถึงหน้านี้ ("...เสร็จสิ้น").
+/// QR ([BookingDraft.paymentChannel] == 'QR'): การจองถูกสร้างแล้วก็จริง แต่
+/// "เสร็จสิ้น" ยังไม่ถูกต้องจนกว่าจะตรวจสอบสลิปผ่าน — หน้านี้เลยโชว์การ์ด
+/// QR+แนบสลิป ([PaymentSlipCard], widget เดียวกับหน้าติดตามสถานะ) และ
+/// เปลี่ยนหัวข้อ/ไอคอนตาม [Booking.paymentStatus] แทนที่จะขึ้น "เสร็จสิ้น"
+/// ตายตัวทันที.
+class Step5Success extends StatefulWidget {
   const Step5Success({
     super.key,
     required this.draft,
@@ -32,16 +39,50 @@ class Step5Success extends StatelessWidget {
   /// "ไปยังหน้าติดตามสถานะ" — ปิด flow แล้วสลับไปแท็บการจอง.
   final VoidCallback onDone;
 
-  bool get _isRepair => bookingModeFor(draft.service) == BookingMode.repair;
+  @override
+  State<Step5Success> createState() => _Step5SuccessState();
+}
 
-  String get _titleText => _isRepair
-      ? 'ส่งคำจองเรียบร้อย รอใบเสนอราคาจากร้าน'
+class _Step5SuccessState extends State<Step5Success> {
+  late Booking _booking = widget.booking;
+
+  BookingDraft get _draft => widget.draft;
+
+  bool get _isRepair => bookingModeFor(_draft.service) == BookingMode.repair;
+
+  bool get _showPaymentSlipCard =>
+      !_isRepair && _draft.paymentChannel == 'QR' && _booking.paidAmount > 0;
+
+  /// The "done" message once payment is actually confirmed — distinct
+  /// wording for a 30% deposit vs paying in full, matching what step4 shows.
+  String get _paidDoneTitleText => _draft.paymentType == 'FULL'
+      ? 'ชำระเงินเต็มจำนวนเสร็จสิ้น'
       : 'ชำระเงินมัดจำเสร็จสิ้น';
 
+  /// Cash (or repair, which never reaches this screen with money owed) is
+  /// done the moment the booking is created. QR isn't "เสร็จสิ้น" until the
+  /// slip is actually verified — showing that message before verification
+  /// would be misleading, so this reflects [Booking.paymentStatus] instead.
+  String get _titleText {
+    if (_isRepair) return 'ส่งคำจองเรียบร้อย รอใบเสนอราคาจากร้าน';
+    if (!_showPaymentSlipCard) return _paidDoneTitleText;
+    switch (_booking.paymentStatus) {
+      case 'VERIFIED':
+        return _paidDoneTitleText;
+      case 'PENDING_REVIEW':
+        return 'ส่งสลิปแล้ว กำลังรอตรวจสอบการชำระเงิน';
+      case 'REJECTED':
+        return 'การชำระเงินมีปัญหา กรุณาแนบสลิปใหม่';
+      case 'AWAITING_PAYMENT':
+      default:
+        return 'สแกน QR แล้วแนบสลิปเพื่อยืนยันการชำระเงิน';
+    }
+  }
+
   String get _selectionSummaryText {
-    final productName = draft.product?.name;
+    final productName = _draft.product?.name;
     if (productName == null) return 'รอใบเสนอราคาหลังส่งคำจอง';
-    final area = draft.installArea;
+    final area = _draft.installArea;
     if (area != null) {
       final areaLabel = _installAreaLabels[area] ?? area;
       return '$productName บริเวณที่ติดตั้ง: $areaLabel';
@@ -50,13 +91,13 @@ class Step5Success extends StatelessWidget {
   }
 
   String get _installDateText {
-    final date = draft.date;
+    final date = _draft.date;
     if (date == null) return '-';
     // The "th" locale's symbol data is bundled synchronously, so this is
     // safe to call directly from build() without awaiting anything.
     initializeDateFormatting('th');
     final dateLabel = DateFormat('EEEE d MMMM', 'th').format(date);
-    final slot = draft.timeSlot ?? '-';
+    final slot = _draft.timeSlot ?? '-';
     return '$dateLabel เวลา $slot';
   }
 
@@ -83,13 +124,21 @@ class Step5Success extends StatelessWidget {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'เลขที่คำสั่งจอง #${booking.orderCode}',
+                  'เลขที่คำสั่งจอง #${_booking.orderCode}',
                   style: const TextStyle(color: Colors.black54),
                 ),
                 const SizedBox(height: 24),
                 _buildSummaryCard(),
                 const SizedBox(height: 16),
                 _buildAmountCard(),
+                if (_showPaymentSlipCard) ...[
+                  const SizedBox(height: 16),
+                  PaymentSlipCard(
+                    booking: _booking,
+                    onBookingUpdated: (updated) =>
+                        setState(() => _booking = updated),
+                  ),
+                ],
               ],
             ),
           ),
@@ -100,14 +149,26 @@ class Step5Success extends StatelessWidget {
   }
 
   Widget _buildSuccessIcon() {
+    var icon = Icons.check;
+    var background = AppColors.primary;
+    if (!_isRepair && _showPaymentSlipCard) {
+      switch (_booking.paymentStatus) {
+        case 'PENDING_REVIEW':
+          icon = Icons.hourglass_top;
+          background = Colors.black45;
+        case 'REJECTED':
+          icon = Icons.error_outline;
+          background = Colors.red;
+        case 'AWAITING_PAYMENT':
+          icon = Icons.qr_code;
+          background = Colors.black45;
+      }
+    }
     return Container(
       width: 88,
       height: 88,
-      decoration: const BoxDecoration(
-        color: AppColors.primary,
-        shape: BoxShape.circle,
-      ),
-      child: const Icon(Icons.check, color: Colors.white, size: 48),
+      decoration: BoxDecoration(color: background, shape: BoxShape.circle),
+      child: Icon(icon, color: Colors.white, size: 48),
     );
   }
 
@@ -152,8 +213,8 @@ class Step5Success extends StatelessWidget {
       );
     }
 
-    final total = bookingTotalAmount(draft);
-    final paid = booking.paidAmount;
+    final total = bookingTotalAmount(_draft);
+    final paid = _booking.paidAmount;
     final remaining = total - paid;
 
     return Container(
@@ -186,7 +247,7 @@ class Step5Success extends StatelessWidget {
         padding: const EdgeInsets.all(16),
         child: FilledButton(
           style: FilledButton.styleFrom(backgroundColor: AppColors.primary),
-          onPressed: onDone,
+          onPressed: widget.onDone,
           child: const Text('ไปยังหน้าติดตามสถานะ'),
         ),
       ),

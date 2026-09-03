@@ -5,8 +5,12 @@ import com.bkkcarglass.backend.dto.BookingRequest;
 import com.bkkcarglass.backend.dto.BookingResponse;
 import com.bkkcarglass.backend.dto.BookingStatusUpdateRequest;
 import com.bkkcarglass.backend.dto.BookingTechnicianAssignRequest;
+import com.bkkcarglass.backend.dto.PaymentSlipRequest;
+import com.bkkcarglass.backend.dto.PaymentSlipReviewRequest;
 import com.bkkcarglass.backend.entity.BookingStatus;
 import com.bkkcarglass.backend.entity.Booking;
+import com.bkkcarglass.backend.entity.NotificationType;
+import com.bkkcarglass.backend.entity.PaymentStatus;
 import com.bkkcarglass.backend.entity.PaymentType;
 import com.bkkcarglass.backend.entity.Product;
 import com.bkkcarglass.backend.entity.ServiceEntity;
@@ -20,6 +24,7 @@ import com.bkkcarglass.backend.exception.InvalidStatusTransitionException;
 import com.bkkcarglass.backend.exception.OutOfStockException;
 import com.bkkcarglass.backend.exception.QuoteNotAvailableException;
 import com.bkkcarglass.backend.exception.ResourceNotFoundException;
+import com.bkkcarglass.backend.exception.SlipNotPendingReviewException;
 import com.bkkcarglass.backend.repository.BookingRepository;
 import com.bkkcarglass.backend.repository.BookingStatusHistoryRepository;
 import com.bkkcarglass.backend.repository.ProductRepository;
@@ -59,6 +64,7 @@ class BookingServiceTest {
     @Mock CurrentUserService currentUserService;
     @Mock NotificationService notificationService;
     @Mock org.springframework.messaging.simp.SimpMessagingTemplate messagingTemplate;
+    @Mock SlipVerificationService slipVerificationService;
 
     BookingService bookingService;
 
@@ -70,7 +76,8 @@ class BookingServiceTest {
         bookingService = new BookingService(
                 bookingRepository, historyRepository, serviceRepository,
                 productRepository, technicianRepository, vehicleRepository,
-                currentUserService, notificationService, messagingTemplate);
+                currentUserService, notificationService, messagingTemplate,
+                slipVerificationService);
 
         customer = User.builder().id(1L).fullName("ลูกค้า ทดสอบ").build();
         washService = ServiceEntity.builder().id(10L).name("ล้างรถ").maxPerSlot(5).build();
@@ -359,6 +366,168 @@ class BookingServiceTest {
         request.setProductId(9L);
 
         assertThrows(OutOfStockException.class, () -> bookingService.create(request));
+    }
+
+    @Test
+    void create_computesTotalAmountFromProductPriceAndServiceBasePrice() {
+        ServiceEntity filmService = ServiceEntity.builder()
+                .id(11L).name("ติดฟิล์มกรองแสง").maxPerSlot(2)
+                .basePrice(new BigDecimal("500.00")).build();
+        Product film = Product.builder()
+                .id(20L).name("ฟิล์ม 3M").active(true)
+                .price(new BigDecimal("15000.00")).build();
+        lenient().when(serviceRepository.findById(11L)).thenReturn(Optional.of(filmService));
+        lenient().when(bookingRepository.countByServiceIdAndBookingDateAndTimeSlotAndStatusNot(
+                anyLong(), any(LocalDate.class), anyString(), eq(BookingStatus.CANCELLED)))
+                .thenReturn(0L);
+        when(bookingRepository.existsByOrderCode(anyString())).thenReturn(false);
+        when(productRepository.findById(20L)).thenReturn(Optional.of(film));
+
+        BookingRequest request = washRequest();
+        request.setServiceId(11L);
+        request.setProductId(20L);
+
+        BookingResponse response = bookingService.create(request);
+
+        assertEquals(new BigDecimal("15500.00"), response.getTotalAmount());
+    }
+
+    @Test
+    void create_leavesTotalAmountNullWhenNoProduct() {
+        // Repair bookings have no product — the customer's rough budget and
+        // (later) the admin's quotePrice are the only price signals; there
+        // is no catalog price to sum, so totalAmount must stay null rather
+        // than silently showing 0.
+        lenient().when(bookingRepository.countByServiceIdAndBookingDateAndTimeSlotAndStatusNot(
+                anyLong(), any(LocalDate.class), anyString(), eq(BookingStatus.CANCELLED)))
+                .thenReturn(0L);
+        when(bookingRepository.existsByOrderCode(anyString())).thenReturn(false);
+
+        BookingResponse response = bookingService.create(washRequest());
+
+        assertNull(response.getTotalAmount());
+    }
+
+    @Test
+    void submitPaymentSlip_ownerSubmission_setsPendingReviewAndStoresSlip() {
+        Booking booking = Booking.builder()
+                .id(60L).user(customer).service(washService)
+                .bookingDate(LocalDate.now().plusDays(1)).timeSlot("09:00")
+                .status(BookingStatus.PENDING)
+                .paymentStatus(PaymentStatus.AWAITING_PAYMENT)
+                .build();
+        when(bookingRepository.findById(60L)).thenReturn(Optional.of(booking));
+
+        PaymentSlipRequest request = new PaymentSlipRequest();
+        request.setImageUrl("https://example.com/slip.jpg");
+        request.setAmount(new BigDecimal("500.00"));
+
+        BookingResponse response = bookingService.submitPaymentSlip(60L, request);
+
+        assertEquals(PaymentStatus.PENDING_REVIEW.name(), response.getPaymentStatus());
+        assertEquals("https://example.com/slip.jpg", response.getSlipImageUrl());
+        assertNotNull(response.getSlipSubmittedAt());
+    }
+
+    @Test
+    void submitPaymentSlip_amountMatchesGeminiReading_autoVerifiesAndNotifiesTheCustomer() {
+        Booking booking = Booking.builder()
+                .id(62L).user(customer).service(washService)
+                .bookingDate(LocalDate.now().plusDays(1)).timeSlot("09:00")
+                .status(BookingStatus.PENDING)
+                .paymentStatus(PaymentStatus.AWAITING_PAYMENT)
+                .paidAmount(new BigDecimal("500.00"))
+                .build();
+        when(bookingRepository.findById(62L)).thenReturn(Optional.of(booking));
+        when(slipVerificationService.verifyAmount("https://example.com/slip.jpg", new BigDecimal("500.00")))
+                .thenReturn(true);
+
+        PaymentSlipRequest request = new PaymentSlipRequest();
+        request.setImageUrl("https://example.com/slip.jpg");
+        request.setAmount(new BigDecimal("500.00"));
+
+        BookingResponse response = bookingService.submitPaymentSlip(62L, request);
+
+        assertEquals(PaymentStatus.VERIFIED.name(), response.getPaymentStatus());
+        assertNotNull(response.getSlipReviewedAt());
+        verify(notificationService).notifyUser(
+                eq(customer), anyString(), anyString(), eq(NotificationType.PAYMENT), eq(booking));
+    }
+
+    @Test
+    void submitPaymentSlip_rejectsWhenNotTheBookingOwner() {
+        User otherUser = User.builder().id(2L).fullName("อีกคน").build();
+        Booking booking = Booking.builder()
+                .id(61L).user(otherUser).service(washService)
+                .bookingDate(LocalDate.now().plusDays(1)).timeSlot("09:00")
+                .status(BookingStatus.PENDING).build();
+        when(bookingRepository.findById(61L)).thenReturn(Optional.of(booking));
+
+        PaymentSlipRequest request = new PaymentSlipRequest();
+        request.setImageUrl("https://example.com/slip.jpg");
+        request.setAmount(new BigDecimal("500.00"));
+
+        assertThrows(BookingAccessDeniedException.class,
+                () -> bookingService.submitPaymentSlip(61L, request));
+    }
+
+    @Test
+    void reviewPaymentSlip_approves_setsVerifiedAndNotifiesCustomer() {
+        Booking booking = Booking.builder()
+                .id(62L).user(customer).service(washService)
+                .bookingDate(LocalDate.now().plusDays(1)).timeSlot("09:00")
+                .status(BookingStatus.PENDING)
+                .paymentStatus(PaymentStatus.PENDING_REVIEW)
+                .slipImageUrl("https://example.com/slip.jpg")
+                .build();
+        when(bookingRepository.findById(62L)).thenReturn(Optional.of(booking));
+
+        PaymentSlipReviewRequest request = new PaymentSlipReviewRequest();
+        request.setApproved(true);
+
+        BookingResponse response = bookingService.reviewPaymentSlip(62L, request);
+
+        assertEquals(PaymentStatus.VERIFIED.name(), response.getPaymentStatus());
+        assertNotNull(response.getSlipReviewedAt());
+        verify(notificationService).notifyUser(
+                eq(customer), anyString(), anyString(), eq(NotificationType.PAYMENT), eq(booking));
+    }
+
+    @Test
+    void reviewPaymentSlip_rejects_setsRejectedWithNote() {
+        Booking booking = Booking.builder()
+                .id(63L).user(customer).service(washService)
+                .bookingDate(LocalDate.now().plusDays(1)).timeSlot("09:00")
+                .status(BookingStatus.PENDING)
+                .paymentStatus(PaymentStatus.PENDING_REVIEW)
+                .build();
+        when(bookingRepository.findById(63L)).thenReturn(Optional.of(booking));
+
+        PaymentSlipReviewRequest request = new PaymentSlipReviewRequest();
+        request.setApproved(false);
+        request.setNote("ยอดเงินไม่ตรง");
+
+        BookingResponse response = bookingService.reviewPaymentSlip(63L, request);
+
+        assertEquals(PaymentStatus.REJECTED.name(), response.getPaymentStatus());
+        assertEquals("ยอดเงินไม่ตรง", response.getSlipReviewNote());
+    }
+
+    @Test
+    void reviewPaymentSlip_throwsWhenNoSlipIsPendingReview() {
+        Booking booking = Booking.builder()
+                .id(64L).user(customer).service(washService)
+                .bookingDate(LocalDate.now().plusDays(1)).timeSlot("09:00")
+                .status(BookingStatus.PENDING)
+                .paymentStatus(PaymentStatus.AWAITING_PAYMENT)
+                .build();
+        when(bookingRepository.findById(64L)).thenReturn(Optional.of(booking));
+
+        PaymentSlipReviewRequest request = new PaymentSlipReviewRequest();
+        request.setApproved(true);
+
+        assertThrows(SlipNotPendingReviewException.class,
+                () -> bookingService.reviewPaymentSlip(64L, request));
     }
 
     @Test
