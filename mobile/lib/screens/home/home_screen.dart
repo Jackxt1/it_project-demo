@@ -203,10 +203,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             setState(() => _searchQuery = value),
                       ),
                       const SizedBox(height: 16),
-                      _PromoCarousel(
-                        onBookService: widget.onBookService,
-                        matchService: _matchService,
-                      ),
+                      const _PromoCarousel(),
                       const SizedBox(height: 24),
                       const Align(
                         alignment: Alignment.centerLeft,
@@ -411,14 +408,14 @@ class _SearchField extends StatelessWidget {
 class _PromoSlide {
   const _PromoSlide({
     required this.title,
-    required this.subtitle,
-    required this.icon,
+    required this.image,
     required this.keyword,
   });
 
+  /// Accessibility label only — the image itself carries all visible copy.
   final String title;
-  final String subtitle;
-  final IconData icon;
+
+  final String image;
 
   /// Keyword used to match this promo to a real [ServiceItem] — same
   /// substring-matching convention as [_QuickAction.matchKeyword].
@@ -428,20 +425,17 @@ class _PromoSlide {
 const List<_PromoSlide> _promoSlides = [
   _PromoSlide(
     title: 'ติดฟิล์มกรองแสง',
-    subtitle: 'กันร้อน กันยูวี เพิ่มความเป็นส่วนตัว',
-    icon: Icons.window_outlined,
+    image: 'assets/image/promo_film.jpg',
     keyword: 'ฟิล์ม',
   ),
   _PromoSlide(
     title: 'ซ่อมรอยร้าวกระจก',
-    subtitle: 'ซ่อมไว ไม่ต้องเปลี่ยนกระจกทั้งบาน',
-    icon: Icons.build_outlined,
+    image: 'assets/image/promo_repair.png',
     keyword: 'ซ่อม',
   ),
   _PromoSlide(
     title: 'ล้างรถครบวงจร',
-    subtitle: 'ล้าง ดูดฝุ่น เคลือบเงา ราคาเบาๆ',
-    icon: Icons.local_car_wash_outlined,
+    image: 'assets/image/promo_wash.jpg',
     keyword: 'ล้าง',
   ),
 ];
@@ -449,16 +443,10 @@ const List<_PromoSlide> _promoSlides = [
 const Duration _promoAutoSlideInterval = Duration(seconds: 5);
 
 /// แบนเนอร์โปรโมชั่นหน้าแรก เลื่อนอัตโนมัติทุก 5 วิ วนตาม [_promoSlides]
-/// (ติดฟิล์ม → ซ่อมกระจก → ล้างรถ) ปัดนิ้วเปลี่ยนเองได้เช่นกัน — ตอนนี้ยังไม่
-/// มีรูปจริง จึงใช้พื้นหลังสีแดงเหมือนกันทุกสไลด์ไปก่อน เปลี่ยนแค่ไอคอน/ข้อความ.
+/// (ติดฟิล์ม → ซ่อมกระจก → ล้างรถ) ปัดนิ้วเปลี่ยนเองได้เช่นกัน — รูปเต็มใบ
+/// โชว์เฉยๆ ไม่มีการนำทางเมื่อแตะ.
 class _PromoCarousel extends StatefulWidget {
-  const _PromoCarousel({
-    required this.onBookService,
-    required this.matchService,
-  });
-
-  final void Function(ServiceItem?)? onBookService;
-  final ServiceItem? Function(String keyword) matchService;
+  const _PromoCarousel();
 
   @override
   State<_PromoCarousel> createState() => _PromoCarouselState();
@@ -492,10 +480,6 @@ class _PromoCarouselState extends State<_PromoCarousel> {
     _restartTimer();
   }
 
-  void _onBookNow(_PromoSlide slide) {
-    widget.onBookService?.call(widget.matchService(slide.keyword));
-  }
-
   @override
   void dispose() {
     _timer?.cancel();
@@ -515,7 +499,6 @@ class _PromoCarouselState extends State<_PromoCarousel> {
             itemCount: _promoSlides.length,
             itemBuilder: (context, index) => _PromoSlideCard(
               slide: _promoSlides[index],
-              onBookNow: _onBookNow,
             ),
           ),
         ),
@@ -542,60 +525,40 @@ class _PromoCarouselState extends State<_PromoCarousel> {
 }
 
 class _PromoSlideCard extends StatelessWidget {
-  const _PromoSlideCard({required this.slide, required this.onBookNow});
+  const _PromoSlideCard({required this.slide});
 
   final _PromoSlide slide;
-  final void Function(_PromoSlide slide) onBookNow;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: AppColors.primary,
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(
-                  slide.title,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 20,
-                    fontWeight: FontWeight.w900,
-                  ),
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(20),
+      child: Semantics(
+        key: ValueKey('promo_slide_${slide.keyword}'),
+        label: slide.title,
+        image: true,
+        child: Container(
+          color: AppColors.primary,
+          width: double.infinity,
+          height: double.infinity,
+          child: Image.asset(
+            slide.image,
+            fit: BoxFit.cover,
+            width: double.infinity,
+            height: double.infinity,
+            errorBuilder: (context, error, stackTrace) => Center(
+              child: Text(
+                slide.title,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  slide.subtitle,
-                  style: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.9),
-                    fontSize: 12,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                FilledButton(
-                  style: FilledButton.styleFrom(
-                    backgroundColor: Colors.white,
-                    foregroundColor: AppColors.primary,
-                    minimumSize: const Size(0, 40),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  onPressed: () => onBookNow(slide),
-                  child: const Text('จองเลย'),
-                ),
-              ],
+              ),
             ),
           ),
-          Icon(slide.icon, color: Colors.white, size: 56),
-        ],
+        ),
       ),
     );
   }

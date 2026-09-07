@@ -213,8 +213,7 @@ void main() {
     expect(find.text('ฟิล์ม Llumar รุ่น Air80'), findsOneWidget);
   });
 
-  testWidgets(
-      'promo carousel first slide "จองเลย" routes to the matched service',
+  testWidgets('promo carousel shows the first slide and is tap-inert',
       (WidgetTester tester) async {
     _growSurface(tester);
     ServiceItem? tapped;
@@ -224,47 +223,33 @@ void main() {
     )));
     await tester.pumpAndSettle();
 
-    // The promo slide's subtitle is unique — its title text also matches
-    // the "บริการด่วน" quick-action card label ("ติดฟิล์มกรองแสง").
-    expect(find.text('กันร้อน กันยูวี เพิ่มความเป็นส่วนตัว'), findsOneWidget);
+    expect(find.byKey(const ValueKey('promo_slide_ฟิล์ม')), findsOneWidget);
 
-    await tester.tap(find.text('จองเลย').first);
+    await tester.tap(find.byKey(const ValueKey('promo_slide_ฟิล์ม')));
     await tester.pumpAndSettle();
 
-    expect(tapped?.name, 'ติดฟิล์ม');
+    expect(tapped, isNull);
+  });
+
+  testWidgets('swiping the promo carousel advances to the next slide',
+      (WidgetTester tester) async {
+    _growSurface(tester);
+
+    await tester.pumpWidget(_wrap(const HomeScreen()));
+    await tester.pumpAndSettle();
+
+    await tester.drag(find.byType(PageView), const Offset(-800, 0));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('promo_slide_ซ่อม')), findsOneWidget);
   });
 
   testWidgets(
-      'swiping the promo carousel to the next slide routes "จองเลย" to that slide\'s service',
+      'swiping the promo carousel twice reaches the car-wash slide',
       (WidgetTester tester) async {
     _growSurface(tester);
-    ServiceItem? tapped;
 
-    await tester.pumpWidget(_wrap(HomeScreen(
-      onBookService: (service) => tapped = service,
-    )));
-    await tester.pumpAndSettle();
-
-    await tester.drag(find.byType(PageView), const Offset(-800, 0));
-    await tester.pumpAndSettle();
-
-    expect(find.text('ซ่อมรอยร้าวกระจก'), findsOneWidget);
-
-    await tester.tap(find.text('จองเลย').first);
-    await tester.pumpAndSettle();
-
-    expect(tapped?.name, 'ซ่อม');
-  });
-
-  testWidgets(
-      'swiping the promo carousel twice reaches the car-wash slide and routes correctly',
-      (WidgetTester tester) async {
-    _growSurface(tester);
-    ServiceItem? tapped;
-
-    await tester.pumpWidget(_wrap(HomeScreen(
-      onBookService: (service) => tapped = service,
-    )));
+    await tester.pumpWidget(_wrap(const HomeScreen()));
     await tester.pumpAndSettle();
 
     await tester.drag(find.byType(PageView), const Offset(-800, 0));
@@ -272,12 +257,7 @@ void main() {
     await tester.drag(find.byType(PageView), const Offset(-800, 0));
     await tester.pumpAndSettle();
 
-    expect(find.text('ล้างรถครบวงจร'), findsOneWidget);
-
-    await tester.tap(find.text('จองเลย').first);
-    await tester.pumpAndSettle();
-
-    expect(tapped?.name, 'ล้างรถ');
+    expect(find.byKey(const ValueKey('promo_slide_ล้าง')), findsOneWidget);
   });
 
   testWidgets(
