@@ -44,6 +44,7 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/auth/**").permitAll()
                         .requestMatchers("/ws/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/uploads/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/services/**", "/api/products/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/reviews/service/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/payment/**").permitAll()
