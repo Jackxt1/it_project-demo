@@ -97,7 +97,10 @@ class ApiClient {
     if (currentToken != null) {
       request.headers['Authorization'] = 'Bearer $currentToken';
     }
-    request.files.add(await http.MultipartFile.fromPath('file', file.path));
+    final bytes = await file.readAsBytes();
+    request.files.add(
+      http.MultipartFile.fromBytes('file', bytes, filename: file.name),
+    );
 
     final streamedResponse = await _client.send(request);
     final response = await http.Response.fromStream(streamedResponse);
