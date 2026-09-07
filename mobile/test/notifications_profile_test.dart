@@ -9,6 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:bkk_customer/api/api_client.dart';
 import 'package:bkk_customer/api/auth_service.dart';
 import 'package:bkk_customer/screens/auth/login_screen.dart';
+import 'package:bkk_customer/screens/bookings/booking_detail_screen.dart';
 import 'package:bkk_customer/screens/profile/profile_screen.dart';
 import 'package:bkk_customer/screens/notifications/notifications_screen.dart';
 import 'package:bkk_customer/theme/app_theme.dart';
@@ -37,6 +38,36 @@ Map<String, dynamic> _notificationJson({
       'bookingId': bookingId,
       'createdAt': createdAt,
       'readAt': readAt,
+    };
+
+Map<String, dynamic> _bookingJson({required int id}) => {
+      'id': id,
+      'orderCode': 'BK-2026-0001',
+      'userId': 1,
+      'userFullName': 'ทดสอบ ระบบ',
+      'serviceId': 3,
+      'serviceName': 'ซ่อมรอยร้าวกระจก',
+      'productId': null,
+      'productName': null,
+      'vehicleId': null,
+      'vehicleBrandModel': null,
+      'vehicleLicensePlate': null,
+      'installArea': null,
+      'paymentType': null,
+      'paidAmount': 0.0,
+      'bookingDate': '2026-07-20',
+      'timeSlot': '09:00',
+      'status': 'PENDING',
+      'budget': 5000.0,
+      'quotePrice': 8000.0,
+      'totalAmount': null,
+      'paymentStatus': 'AWAITING_PAYMENT',
+      'slipImageUrl': null,
+      'slipSubmittedAt': null,
+      'slipReviewedAt': null,
+      'slipReviewNote': null,
+      'notes': null,
+      'statusHistory': <Map<String, dynamic>>[],
     };
 
 Widget _wrap(Widget child) => MaterialApp(
@@ -124,6 +155,49 @@ void main() {
         );
         // After marking as read, the red dot for item 2 should disappear.
         expect(find.byKey(const ValueKey('unread-dot-2')), findsNothing);
+      },
+    );
+
+    testWidgets(
+      'tapping a notification with a bookingId opens BookingDetailScreen '
+      'for that booking (e.g. the "ใบเสนอราคามาแล้ว" quote-sent push)',
+      (WidgetTester tester) async {
+        final now = DateTime.now();
+        ApiClient.instance = ApiClient(
+          httpClient: MockClient((request) async {
+            if (request.method == 'GET' &&
+                request.url.path == '/api/notifications/me') {
+              return _jsonResponse([
+                _notificationJson(
+                  id: 1,
+                  title: 'ใบเสนอราคามาแล้ว',
+                  body: 'ร้านส่งใบเสนอราคา 8,000 บาท',
+                  bookingId: 42,
+                  createdAt: now.toIso8601String(),
+                  readAt: null,
+                ),
+              ]);
+            }
+            if (request.method == 'PUT' &&
+                request.url.path == '/api/notifications/1/read') {
+              return http.Response('', 200);
+            }
+            if (request.method == 'GET' &&
+                request.url.path == '/api/bookings/42') {
+              return _jsonResponse(_bookingJson(id: 42));
+            }
+            return http.Response('Not found', 404);
+          }),
+        );
+
+        await tester.pumpWidget(_wrap(const NotificationsScreen()));
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.text('ใบเสนอราคามาแล้ว'));
+        await tester.pumpAndSettle();
+
+        expect(find.byType(BookingDetailScreen), findsOneWidget);
+        expect(find.text('ซ่อมรอยร้าวกระจก'), findsOneWidget);
       },
     );
 
