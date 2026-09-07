@@ -8,11 +8,18 @@ const EMPTY_FORM = {
   name: '',
   brand: '',
   grade: '',
+  heatRejectionPct: '',
+  uvRejectionPct: '',
+  vltPct: '',
   price: '',
   description: '',
   imageUrl: '',
   active: true,
 };
+
+function numOrNull(value: string): number | null {
+  return value === '' ? null : Number(value);
+}
 
 export default function ProductManager() {
   const [products, setProducts] = useState<Product[]>([]);
@@ -42,6 +49,9 @@ export default function ProductManager() {
       name: product.name,
       brand: product.brand ?? '',
       grade: product.grade ?? '',
+      heatRejectionPct: product.heatRejectionPct === null ? '' : String(product.heatRejectionPct),
+      uvRejectionPct: product.uvRejectionPct === null ? '' : String(product.uvRejectionPct),
+      vltPct: product.vltPct === null ? '' : String(product.vltPct),
       price: String(product.price),
       description: product.description ?? '',
       imageUrl: product.imageUrl ?? '',
@@ -62,6 +72,9 @@ export default function ProductManager() {
       name: form.name,
       brand: form.brand || null,
       grade: form.grade || null,
+      heatRejectionPct: numOrNull(form.heatRejectionPct),
+      uvRejectionPct: numOrNull(form.uvRejectionPct),
+      vltPct: numOrNull(form.vltPct),
       price: Number(form.price),
       description: form.description || null,
       imageUrl: form.imageUrl || null,
@@ -185,6 +198,41 @@ export default function ProductManager() {
           onChange={(e) => setForm({ ...form, grade: e.target.value })}
           className="w-full rounded border border-gray-300 px-3 py-2"
         />
+        <input
+          placeholder="URL รูปภาพ"
+          value={form.imageUrl}
+          onChange={(e) => setForm({ ...form, imageUrl: e.target.value })}
+          className="w-full rounded border border-gray-300 px-3 py-2"
+        />
+        <div className="grid grid-cols-3 gap-2">
+          <input
+            type="number"
+            min="0"
+            max="100"
+            placeholder="% กันร้อน"
+            value={form.heatRejectionPct}
+            onChange={(e) => setForm({ ...form, heatRejectionPct: e.target.value })}
+            className="w-full rounded border border-gray-300 px-2 py-2 text-sm"
+          />
+          <input
+            type="number"
+            min="0"
+            max="100"
+            placeholder="% กันยูวี"
+            value={form.uvRejectionPct}
+            onChange={(e) => setForm({ ...form, uvRejectionPct: e.target.value })}
+            className="w-full rounded border border-gray-300 px-2 py-2 text-sm"
+          />
+          <input
+            type="number"
+            min="0"
+            max="100"
+            placeholder="% ความเข้ม (VLT)"
+            value={form.vltPct}
+            onChange={(e) => setForm({ ...form, vltPct: e.target.value })}
+            className="w-full rounded border border-gray-300 px-2 py-2 text-sm"
+          />
+        </div>
         <input
           required
           type="number"
