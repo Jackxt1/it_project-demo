@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import { apiGet, ApiError } from '@/lib/api';
 import type { BookingsByStatus, DashboardSummary } from '@/lib/types';
+import StatusBarChart from '@/components/StatusBarChart';
 
 const STATUS_LABELS: Record<string, string> = {
   PENDING: 'รอดำเนินการ',
@@ -54,9 +55,10 @@ export default function DashboardView() {
 
       <div className="rounded-lg bg-white p-4 shadow-sm">
         <h2 className="mb-3 font-semibold text-brand-deep">จำนวนการจองตามสถานะ</h2>
-        <div className="space-y-2">
+        <StatusBarChart statusCounts={byStatus.statusCounts} />
+        <div className="mt-3 space-y-1 border-t border-gray-100 pt-3">
           {Object.entries(byStatus.statusCounts).map(([status, count]) => (
-            <div key={status} className="flex items-center justify-between text-sm">
+            <div key={status} className="flex items-center justify-between text-sm text-gray-600">
               <span>{STATUS_LABELS[status] ?? status}</span>
               <span className="font-medium">{count}</span>
             </div>
