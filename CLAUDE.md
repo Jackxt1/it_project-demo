@@ -67,7 +67,42 @@ read/read-all), โปรไฟล์+รถของฉัน (CRUD, ฟอร�
 - เทส: widget/unit 33 ตัว (รันด้วย `flutter test --concurrency=1` — bare `flutter test` flaky บนเครื่องนี้)
 - ตรวจ integration กับ backend จริงแล้ว 24/24 (จองล้าง+มัดจำ, quote flow ครบวงจร, แชท, chatbot fallback)
 - API base URL ตั้งผ่าน `--dart-define=API_BASE_URL` (default http://localhost:8080) (Android emulator ใช้ http://10.0.2.2:8080)
-- ยังไม่ทำ: Google Sign-In, ลืมรหัสผ่าน, ชำระเงินจริง (เฟส 4), แอปช่าง (เฟส 3)
+- ยังไม่ทำ: Google Sign-In, ลืมรหัสผ่าน, ชำระเงินจริง (เฟส 4)
+
+## Technician App Status (technician_app/)
+
+แอปช่าง Flutter แยกโปรเจกต์ต่างหาก (`technician_app/`, package `bkk_technician`, platforms
+android+web) — เฟส 3 เริ่มแล้ว, เขียนจาก mockup HTML ที่มี login แบบ "แตะเลือกช่าง" โดยไม่ยืนยันตัวตน
+(ไม่ปลอดภัย — ใครก็เข้าเป็นช่างคนไหนก็ได้) แก้เป็น login จริงด้วยอีเมล/รหัสผ่านผ่าน `/api/auth/login`
+เดียวกับแอปลูกค้า/web_admin แล้ว gate ที่ client ว่า `role == TECHNICIAN` เท่านั้น (ปฏิเสธ token ที่ login
+ผ่านแต่ role ไม่ตรง ไม่ persist/ไม่ผูกกับ ApiClient) — ไม่มีสมัครสมาชิกเอง เพราะบัญชีช่างสร้างผ่าน
+`POST /api/admin/technicians` โดย admin/owner เท่านั้น
+
+- หน้าจอ: splash → login → ตารางงานวันนี้ (stat cards + job list) → รายละเอียดงาน (stepper 3 ขั้น:
+  รับงานแล้ว/กำลังดำเนินการ/เสร็จสิ้น อัปเดตผ่าน `PUT /api/technician/bookings/{id}/status`, จำกัดแค่
+  IN_PROGRESS/COMPLETED ตาม backend validation) → ประวัติงาน (COMPLETED/CANCELLED) → ปฏิทิน (group by
+  เดือน จาก `GET /api/technician/bookings/me` ตัวเดียว ไม่มี filter ฝั่ง backend เลย filter ที่ client
+  ทั้งหมด) → การแจ้งเตือน (`/api/notifications/me`, role-agnostic endpoint เดียวกับลูกค้า) → โปรไฟล์/ออกจากระบบ
+- ตัด concept "งานนอกสถานที่"/ลากรถ/badge ที่ตั้งออกจาก mockup เดิมทั้งหมด เพราะขัดกับ business rule
+  ("ทุกบริการต้องมาที่ร้านเท่านั้น") และไม่มี field ที่อยู่ใน backend เลย (ตรวจแล้ว ไม่มี address/location
+  field บน Booking/User/Vehicle) — แสดง "ที่ร้าน" แบบ static แทน
+- ตัดปุ่ม "ติดต่อลูกค้า" ออกจาก mockup เดิมเช่นกัน เพราะ `BookingResponse` ไม่มี field เบอร์โทรลูกค้า
+  (มีแค่ `userFullName`) — ถ้าต้องการ ต้องเพิ่ม `userPhone` ใน backend DTO ก่อน
+- state: ไม่ใช้ provider/riverpod เหมือน `mobile/` — ใช้ `TechnicianQueueController` (ChangeNotifier
+  singleton) แคช `GET /me` ตัวเดียวใช้ร่วมกันทั้งหน้า home/history/calendar/detail
+- Real-time job assignment: เดิมตั้งใจใช้ pull-to-refresh อย่างเดียว แต่ทดสอบ flow จริง (ลูกค้าจอง →
+  แอดมิน assign ช่าง) แล้วพบว่างานใหม่ "ไม่เด้ง" เข้าฝั่งช่างเลยจนกว่าจะ reload เอง — แก้แล้วโดย subscribe
+  STOMP topic `/topic/technician/{userId}/queue` ที่ `BookingService.assignTechnician` (backend) ยิงอยู่แล้ว
+  (`lib/api/technician_queue_socket.dart`, ต่อผ่าน `TechnicianQueueController.connectLive()` ตอนเข้า
+  `MainShell`) — พอ admin assign ปุ๊บ การ์ดงานโผล่ + stat cards ขยับ + SnackBar เด้งทันทีโดยไม่ต้อง refresh
+  (ตรวจกับ backend จริงแล้ว). ข้อจำกัดที่เหลือ: topic นี้ยิงเฉพาะตอน assign เท่านั้น — แอดมินเปลี่ยนสถานะ
+  ตรงๆ (เช่นยกเลิกงานที่ assign ไปแล้ว) ยังไม่ push ให้ช่าง ต้อง refresh เอง; และ `/api/notifications/me`
+  ของช่างจะว่างเปล่าเสมอเพราะ backend ไม่เคยสร้าง `NotificationType.JOB_ASSIGNED` จริง (มี enum แต่ไม่ถูกเรียก)
+- เทส: `flutter test --concurrency=1` (สืบทอด pattern เดียวกับ `mobile/`)
+- ตรวจ integration กับ backend จริงแล้ว: login/queue/status-update/real-time assignment ตรง contract 100%
+  (curl + browser E2E ผ่าน dev proxy ที่ tunnel ทั้ง REST และ WebSocket + seed technician account ในเครื่อง
+  `technician.test@bkk.local` — ต้อง set password เองถ้าจะ login เพราะไม่มี password เดิมในเครื่อง dev)
+- ยังไม่ทำ: ลืมรหัสผ่าน (แสดง dialog ให้ติดต่อ admin แทน เพราะ backend ไม่มี endpoint reset password ของช่าง)
 
 ## Web Admin/Technician App Status
 
