@@ -274,6 +274,13 @@ ALTER TABLE bookings ADD COLUMN IF NOT EXISTS slip_submitted_at TIMESTAMP@@
 ALTER TABLE bookings ADD COLUMN IF NOT EXISTS slip_reviewed_at TIMESTAMP@@
 ALTER TABLE bookings ADD COLUMN IF NOT EXISTS slip_review_note TEXT@@
 
+-- Seed: glass-crack-repair service (idempotent). Quote-based — no upfront
+-- price/products, matches on not being the film/wash service by name (see
+-- mobile step2_product.dart's "ซ่อม/เปลี่ยนกระจก (อื่นๆ)" fallback mode).
+INSERT INTO services (name, description, base_price, max_per_slot)
+SELECT 'ซ่อมรอยร้าวกระจก', 'ซ่อมรอยร้าว รอยกระเทาะกระจกรถยนต์ ไม่ต้องเปลี่ยนทั้งบาน ประเมินราคาจากรูปหน้างาน', 0, 3
+WHERE NOT EXISTS (SELECT 1 FROM services WHERE name = 'ซ่อมรอยร้าวกระจก')@@
+
 ALTER TABLE notifications DROP CONSTRAINT IF EXISTS notifications_type_check@@
 ALTER TABLE notifications ADD CONSTRAINT notifications_type_check
     CHECK (type IN ('BOOKING_STATUS', 'QUOTE', 'JOB_ASSIGNED', 'CHAT', 'PAYMENT', 'OTHER'))@@
