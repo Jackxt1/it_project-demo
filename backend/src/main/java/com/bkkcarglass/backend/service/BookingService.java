@@ -146,7 +146,9 @@ public class BookingService {
 
     @Transactional(readOnly = true)
     public List<BookingResponse> findAll() {
-        return bookingRepository.findAll().stream().map(this::toResponse).toList();
+        return bookingRepository.findAllByOrderByBookingDateAscTimeSlotAsc().stream()
+                .map(this::toResponse)
+                .toList();
     }
 
     @Transactional(readOnly = true)

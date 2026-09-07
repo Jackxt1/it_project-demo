@@ -17,6 +17,8 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
 
     List<Booking> findByTechnicianUserIdOrderByBookingDateAscTimeSlotAsc(Long userId);
 
+    List<Booking> findAllByOrderByBookingDateAscTimeSlotAsc();
+
     long countByServiceIdAndBookingDateAndTimeSlotAndStatusNot(
             Long serviceId, LocalDate bookingDate, String timeSlot, BookingStatus excludedStatus);
 
