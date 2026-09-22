@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState, type FormEvent } from 'react';
 import { apiGet, apiPost, apiPut, apiDelete, ApiError } from '@/lib/api';
+import { PencilIcon, TrashIcon } from '@/components/ActionIcons';
 import type { Service } from '@/lib/types';
 
 const EMPTY_FORM = { name: '', description: '', basePrice: '', maxPerSlot: '' };
@@ -84,11 +85,19 @@ export default function ServiceManager() {
               <td className="p-3">{service.basePrice.toLocaleString()} บาท</td>
               <td className="p-3">{service.maxPerSlot}</td>
               <td className="space-x-2 p-3">
-                <button onClick={() => startEdit(service)} className="text-brand hover:underline">
+                <button
+                  onClick={() => startEdit(service)}
+                  className="inline-flex items-center gap-1 rounded-md bg-yellow-500 px-3 py-1.5 text-sm text-white hover:bg-yellow-600"
+                >
+                  <PencilIcon />
                   แก้ไข
                 </button>
-                <button onClick={() => handleDelete(service.id)} className="text-red-600 hover:underline">
-                  ลบ
+                <button
+                  onClick={() => handleDelete(service.id)}
+                  aria-label="ลบ"
+                  className="inline-flex items-center justify-center rounded-md bg-brand p-1.5 text-white hover:bg-brand-dark"
+                >
+                  <TrashIcon />
                 </button>
               </td>
             </tr>

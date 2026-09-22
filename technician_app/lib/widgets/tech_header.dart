@@ -42,7 +42,7 @@ class TechHeader extends StatelessWidget implements PreferredSizeWidget {
 
   @override
   Size get preferredSize => Size.fromHeight(
-        showBack ? 64 : (brandRow != null ? 128 : 76),
+        showBack ? 64 : (brandRow != null ? 136 : 76),
       );
 
   @override

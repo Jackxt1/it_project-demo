@@ -3,9 +3,12 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 
 import '../api/api_client.dart';
+import '../api/notification_service.dart';
+import '../api/notification_socket.dart';
 import '../api/technician_booking_service.dart';
 import '../api/technician_queue_socket.dart';
 import '../models/booking.dart';
+import '../models/notification_item.dart';
 
 /// Single shared source of truth for "all bookings assigned to me", fetched
 /// once from `GET /api/technician/bookings/me` and reused by the home
@@ -41,6 +44,18 @@ class TechnicianQueueController extends ChangeNotifier {
   /// from the [bookings] list update itself so the UI can tell "a fresh
   /// push happened" apart from "the list was reloaded from a refresh".
   Stream<Booking> get onNewJobAssigned => _newJobController.stream;
+
+  int _unreadNotifications = 0;
+  int get unreadNotifications => _unreadNotifications;
+
+  NotificationSocketConnector? _notificationSocket;
+  final StreamController<NotificationItem> _newNotificationController =
+      StreamController<NotificationItem>.broadcast();
+
+  /// Fires every time the live socket delivers a new notification (e.g. the
+  /// "งานใหม่เข้ามาแล้ว" push sent when a job is assigned) — [MainShell]
+  /// listens to this to pop a toast, same split as [onNewJobAssigned].
+  Stream<NotificationItem> get onNewNotification => _newNotificationController.stream;
 
   Future<void> refresh() async {
     _loading = true;
@@ -116,20 +131,67 @@ class TechnicianQueueController extends ChangeNotifier {
     _socket = null;
   }
 
+  /// Seeds [unreadNotifications] from `GET /api/notifications/me` — call
+  /// once on startup so the badge is correct before the first live push.
+  Future<void> loadUnreadNotificationCount() async {
+    try {
+      final items = await NotificationService.instance.fetchMine();
+      _unreadNotifications = items.where((n) => !n.isRead).length;
+      notifyListeners();
+    } catch (_) {
+      // A failed badge fetch isn't worth surfacing an error for.
+    }
+  }
+
+  /// Lets [NotificationsScreen] resync the badge after it loads/marks
+  /// items read, so the count reflects reality instead of drifting from
+  /// the live-push-only increment in [connectNotificationsLive].
+  void setUnreadNotificationCount(int count) {
+    _unreadNotifications = count;
+    notifyListeners();
+  }
+
+  /// Opens the live STOMP subscription for [userId]'s notifications —
+  /// mirrors [connectLive] but for `/topic/notifications/{userId}` instead
+  /// of the job-queue topic. [connectorOverride] lets tests inject a fake.
+  void connectNotificationsLive(int userId, {NotificationSocketConnector? connectorOverride}) {
+    _notificationSocket?.dispose();
+    final socket = connectorOverride ?? StompNotificationSocketConnector();
+    _notificationSocket = socket;
+    socket.connect(
+      userId: userId,
+      onNotification: (notification) {
+        _unreadNotifications += 1;
+        notifyListeners();
+        _newNotificationController.add(notification);
+      },
+    );
+  }
+
+  /// Tears down the live notification socket — call on logout/sign-out.
+  void disconnectNotificationsLive() {
+    _notificationSocket?.dispose();
+    _notificationSocket = null;
+  }
+
   /// Clears cached state on logout so a different technician signing in on
   /// the same device never briefly sees the previous technician's jobs.
   void reset() {
     disconnectLive();
+    disconnectNotificationsLive();
     _bookings = const [];
     _loadedOnce = false;
     _error = null;
+    _unreadNotifications = 0;
     notifyListeners();
   }
 
   @override
   void dispose() {
     disconnectLive();
+    disconnectNotificationsLive();
     _newJobController.close();
+    _newNotificationController.close();
     super.dispose();
   }
 }

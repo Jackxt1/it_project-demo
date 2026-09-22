@@ -4,7 +4,25 @@
       "Read(//c/Users/Jack/AppData/Local/Temp/claude/C--Users-Jack-Desktop-it/c6d12a30-bc19-448b-a666-75cec851fcb5/scratchpad/**)",
       "Bash(curl -s -w '\\\\nSTATUS:%{http_code}\\\\n' -X POST http://localhost:8080/api/products -H 'Authorization: Bearer __CMDSUB_OUTPUT__' -H 'Content-Type: application/json; charset=utf-8' --data-binary @/c/Users/Jack/AppData/Local/Temp/claude/C--Users-Jack-Desktop-it/c6d12a30-bc19-448b-a666-75cec851fcb5/scratchpad/product1.json)",
       "Bash(curl -s -w '\\\\nSTATUS:%{http_code}\\\\n' -X POST http://localhost:8080/api/products -H 'Authorization: Bearer __CMDSUB_OUTPUT__' -H 'Content-Type: application/json; charset=utf-8' --data-binary @/c/Users/Jack/AppData/Local/Temp/claude/C--Users-Jack-Desktop-it/c6d12a30-bc19-448b-a666-75cec851fcb5/scratchpad/product2.json)",
-      "Bash(curl -s -w \"\\\\nSTATUS:%{http_code}\\\\n\" \"http://localhost:8080/api/products?serviceId=2\")"
+      "Bash(curl -s -w \"\\\\nSTATUS:%{http_code}\\\\n\" \"http://localhost:8080/api/products?serviceId=2\")",
+      "Bash(export JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home)",
+      "Bash(export CORS_ALLOWED_ORIGINS=\"http://localhost:5000,http://localhost:8080,http://localhost:3000,http://localhost:5173,http://localhost:5555,http://localhost:5050,http://localhost:5090,http://192.168.1.129:5173,http://192.168.1.129:5555,http://192.168.1.129:3000,http://192.168.1.129:5050,http://192.168.1.129:5090\")",
+      "Bash(mvn spring-boot:run)",
+      "Bash(disown)",
+      "Bash(echo \"started with PID $!\")",
+      "Bash(mvn -q compile)",
+      "Bash(mvn -q clean compile)",
+      "Bash(java -version)",
+      "Bash(mvn -version)",
+      "Bash(/usr/libexec/java_home -V)",
+      "Bash(npx tsc *)",
+      "Bash(export JAVA_HOME=/opt/homebrew/Cellar/openjdk@21/21.0.12.1/libexec/openjdk.jdk/Contents/Home)",
+      "Bash(echo \"DONE exit=$?\")",
+      "Bash(xargs -r kill)",
+      "Bash(lsof -i :8080 -sTCP:LISTEN)",
+      "Bash(CORS_ALLOWED_ORIGINS=\"http://localhost:5000,http://localhost:8080,http://localhost:3000,http://localhost:5173,http://localhost:5555,http://localhost:5050,http://localhost:5090,http://192.168.1.129:5173,http://192.168.1.129:5555,http://192.168.1.129:3000,http://192.168.1.129:5050,http://192.168.1.129:5090\" nohup mvn spring-boot:run)",
+      "Bash(echo \"Started with PID $!\")",
+      "Bash(sleep 15 && tail -15 /tmp/backend_restart4.log)"
     ]
   }
 }

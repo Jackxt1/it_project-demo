@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState, type FormEvent } from 'react';
 import { apiGet, apiPost, apiPut, apiPatch, ApiError } from '@/lib/api';
+import { PencilIcon, PowerOffIcon } from '@/components/ActionIcons';
 import type { Technician } from '@/lib/types';
 
 const EMPTY_ACCOUNT_FORM = { fullName: '', phone: '', email: '', password: '' };
@@ -104,13 +105,29 @@ export default function TechnicianManager() {
                 <td className="p-3">{tech.fullName}</td>
                 <td className="p-3">{tech.phone ?? '-'}</td>
                 <td className="p-3">{tech.email ?? '-'}</td>
-                <td className="p-3">{tech.active ? 'ใช้งานอยู่' : 'ปิดใช้งาน'}</td>
-                <td className="space-x-2 p-3">
-                  <button onClick={() => startEdit(tech)} className="text-brand hover:underline">
+                <td className="whitespace-nowrap p-3">
+                  <span
+                    className={`rounded-full px-3 py-1 text-xs font-medium ${
+                      tech.active ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                    }`}
+                  >
+                    {tech.active ? 'ใช้งานอยู่' : 'ปิดใช้งาน'}
+                  </span>
+                </td>
+                <td className="space-x-2 whitespace-nowrap p-3">
+                  <button
+                    onClick={() => startEdit(tech)}
+                    className="inline-flex items-center gap-1 whitespace-nowrap rounded-md bg-yellow-500 px-3 py-1.5 text-sm text-white hover:bg-yellow-600"
+                  >
+                    <PencilIcon />
                     แก้ไข
                   </button>
                   {tech.active && (
-                    <button onClick={() => handleDeactivate(tech.id)} className="text-red-600 hover:underline">
+                    <button
+                      onClick={() => handleDeactivate(tech.id)}
+                      className="inline-flex items-center gap-1 whitespace-nowrap rounded-md bg-brand px-3 py-1.5 text-sm text-white hover:bg-brand-dark"
+                    >
+                      <PowerOffIcon />
                       ปิดใช้งาน
                     </button>
                   )}

@@ -1,8 +1,9 @@
 'use client';
 import { useEffect, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { apiGet, apiPut, apiPatch, ApiError } from '@/lib/api';
 import type { Booking, BookingStatus, Technician } from '@/lib/types';
-import StatusBadge from '@/components/StatusBadge';
+import StatusBadge, { STATUS_LABELS } from '@/components/StatusBadge';
 import { createStompClient } from '@/lib/ws';
 import { upsertBooking } from '@/lib/queueStore';
 import type { Role } from '@/lib/session';
@@ -20,6 +21,7 @@ export default function QueueBoard({ role, userId }: { role: Role; userId: numbe
   const [quoteDrafts, setQuoteDrafts] = useState<Record<number, string>>({});
   const [submittingQuoteId, setSubmittingQuoteId] = useState<number | null>(null);
   const [dateFilter, setDateFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState<BookingStatus | 'ALL'>('ALL');
 
   useEffect(() => {
     async function load() {
@@ -52,6 +54,45 @@ export default function QueueBoard({ role, userId }: { role: Role; userId: numbe
     };
   }, [isTechnician, userId]);
 
+  useEffect(() => {
+    if (isTechnician) return;
+    const client = createStompClient((connected) => {
+      connected.subscribe('/topic/admin/bookings', (message) => {
+        const created = JSON.parse(message.body) as Booking;
+        setBookings((prev) => upsertBooking(prev, created));
+      });
+    });
+    return () => {
+      client.deactivate();
+    };
+  }, [isTechnician]);
+
+  const [highlightedId, setHighlightedId] = useState<number | null>(null);
+  const searchParams = useSearchParams();
+
+  useEffect(() => {
+    // Reads via the reactive useSearchParams() (not window.location.search
+    // in a []-deps effect) so this re-fires when a popup/notification click
+    // pushes a new ?highlight= while already on /queue — that navigation
+    // never remounts this component, so a one-shot effect would only ever
+    // catch the *first* highlight and require a manual refresh afterwards.
+    const raw = searchParams.get('highlight');
+    if (!raw) return;
+    const id = Number(raw);
+    if (Number.isNaN(id)) return;
+    setHighlightedId(id);
+    const timer = setTimeout(() => setHighlightedId(null), 4000);
+    return () => clearTimeout(timer);
+  }, [searchParams]);
+
+  useEffect(() => {
+    if (highlightedId == null) return;
+    document.getElementById(`booking-${highlightedId}`)?.scrollIntoView({
+      behavior: 'smooth',
+      block: 'center',
+    });
+  }, [highlightedId, bookings]);
+
   async function updateStatus(id: number, status: BookingStatus) {
     try {
       const path = isTechnician ? `/technician/bookings/${id}/status` : `/bookings/${id}/status`;
@@ -66,6 +107,13 @@ export default function QueueBoard({ role, userId }: { role: Role; userId: numbe
     try {
       const updated = await apiPatch<Booking>(`/bookings/${id}/technician`, { technicianId });
       setBookings((prev) => prev.map((b) => (b.id === id ? updated : b)));
+      // Assigning a technician while a job is still pending auto-confirms
+      // it on the backend — jump the filter tab there so the admin sees
+      // the result of what they just did instead of the card just
+      // vanishing from "รอดำเนินการ".
+      if (updated.status === 'CONFIRMED') {
+        setStatusFilter('CONFIRMED');
+      }
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'มอบหมายช่างไม่สำเร็จ');
     }
@@ -99,7 +147,14 @@ export default function QueueBoard({ role, userId }: { role: Role; userId: numbe
 
   if (loading) return <p>กำลังโหลด...</p>;
 
-  const visibleBookings = dateFilter ? bookings.filter((b) => b.bookingDate === dateFilter) : bookings;
+  const dateFilteredBookings = dateFilter ? bookings.filter((b) => b.bookingDate === dateFilter) : bookings;
+  const visibleBookings =
+    statusFilter === 'ALL' ? dateFilteredBookings : dateFilteredBookings.filter((b) => b.status === statusFilter);
+
+  const statusCounts = STATUS_OPTIONS.reduce((acc, status) => {
+    acc[status] = dateFilteredBookings.filter((b) => b.status === status).length;
+    return acc;
+  }, {} as Record<BookingStatus, number>);
 
   return (
     <div className="space-y-3">
@@ -123,11 +178,39 @@ export default function QueueBoard({ role, userId }: { role: Role; userId: numbe
         )}
       </div>
 
+      <div className="flex flex-wrap gap-1 rounded-md bg-gray-100 p-1 text-sm">
+        <button
+          onClick={() => setStatusFilter('ALL')}
+          className={`rounded px-3 py-1 ${
+            statusFilter === 'ALL' ? 'bg-gradient-to-r from-[#be1a1a] to-[#580c0c] text-white shadow-sm' : 'text-gray-500'
+          }`}
+        >
+          ทั้งหมด ({dateFilteredBookings.length})
+        </button>
+        {STATUS_OPTIONS.map((status) => (
+          <button
+            key={status}
+            onClick={() => setStatusFilter(status)}
+            className={`rounded px-3 py-1 ${
+              statusFilter === status ? 'bg-gradient-to-r from-[#be1a1a] to-[#580c0c] text-white shadow-sm' : 'text-gray-500'
+            }`}
+          >
+            {STATUS_LABELS[status]} ({statusCounts[status]})
+          </button>
+        ))}
+      </div>
+
       {visibleBookings.length === 0 && (
         <p className="text-gray-500">{dateFilter ? 'ไม่มีงานในคิววันที่เลือก' : 'ไม่มีงานในคิว'}</p>
       )}
       {visibleBookings.map((booking) => (
-        <div key={booking.id} className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+        <div
+          key={booking.id}
+          id={`booking-${booking.id}`}
+          className={`rounded-lg border bg-white p-4 shadow-sm transition-colors ${
+            highlightedId === booking.id ? 'border-brand ring-2 ring-brand' : 'border-gray-200'
+          }`}
+        >
           <div className="flex items-center justify-between">
             <div>
               <p className="font-semibold">
@@ -221,7 +304,7 @@ export default function QueueBoard({ role, userId }: { role: Role; userId: numbe
                 >
                   {STATUS_OPTIONS.map((status) => (
                     <option key={status} value={status}>
-                      {status}
+                      {STATUS_LABELS[status]}
                     </option>
                   ))}
                 </select>

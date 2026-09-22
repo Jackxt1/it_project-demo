@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
-import Link from 'next/link';
 import { apiGet, ApiError } from '@/lib/api';
+import CustomerDetailModal from '@/components/CustomerDetailModal';
 import type { Customer, Page } from '@/lib/types';
 
 export default function CustomerList() {
@@ -9,6 +9,7 @@ export default function CustomerList() {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [selectedId, setSelectedId] = useState<number | null>(null);
 
   useEffect(() => {
     async function load() {
@@ -56,15 +57,19 @@ export default function CustomerList() {
                 <td className="p-3">{customer.email}</td>
                 <td className="p-3">{customer.phone ?? '-'}</td>
                 <td className="p-3">
-                  <Link href={`/customers/${customer.id}`} className="text-brand hover:underline">
+                  <button
+                    onClick={() => setSelectedId(customer.id)}
+                    className="rounded-md bg-brand px-3 py-1.5 text-sm text-white hover:bg-brand-dark"
+                  >
                     ดูรายละเอียด
-                  </Link>
+                  </button>
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
       )}
+      <CustomerDetailModal customerId={selectedId} onClose={() => setSelectedId(null)} />
     </div>
   );
 }

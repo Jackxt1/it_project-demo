@@ -179,24 +179,6 @@ void main() {
     expect(tapped?.name, 'ล้างรถ');
   });
 
-  testWidgets('tapping "รีวิว" opens the reviews screen',
-      (WidgetTester tester) async {
-    _growSurface(tester);
-    var bookCalled = false;
-
-    await tester.pumpWidget(_wrap(HomeScreen(
-      onBookService: (_) => bookCalled = true,
-    )));
-    await tester.pumpAndSettle();
-
-    await tester.tap(find.text('รีวิว'));
-    await tester.pumpAndSettle();
-
-    expect(bookCalled, isFalse);
-    // ReviewsScreen's AppBar title — confirms navigation instead of a booking.
-    expect(find.text('รีวิวจากลูกค้า'), findsOneWidget);
-  });
-
   testWidgets('search field filters the popular products list',
       (WidgetTester tester) async {
     _growSurface(tester);

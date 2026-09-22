@@ -1,0 +1,29 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "web_admin",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev", "--prefix", "web_admin"],
+      "port": 3000
+    },
+    {
+      "name": "technician_app",
+      "runtimeExecutable": "bash",
+      "runtimeArgs": [
+        "-c",
+        "cd technician_app && flutter run -d web-server --web-port=5050 --web-hostname=localhost --dart-define=API_BASE_URL=http://localhost:8080"
+      ],
+      "port": 5050
+    },
+    {
+      "name": "mobile",
+      "runtimeExecutable": "bash",
+      "runtimeArgs": [
+        "-c",
+        "cd mobile && flutter run -d web-server --web-port=5090 --web-hostname=localhost --dart-define=API_BASE_URL=http://localhost:8080"
+      ],
+      "port": 5090
+    }
+  ]
+}

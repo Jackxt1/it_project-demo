@@ -139,8 +139,8 @@ class _LoginScreenState extends State<LoginScreen> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Image(
-                      image: AssetImage('assets/image/white_logo.png'),
-                      width: 200,
+                      image: AssetImage('assets/image/mechanic_logo.png'),
+                      width: 220,
                     ),
                     SizedBox(height: 10),
                     Text(

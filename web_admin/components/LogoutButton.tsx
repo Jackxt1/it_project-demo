@@ -11,7 +11,10 @@ export default function LogoutButton() {
   }
 
   return (
-    <button onClick={handleLogout} className="text-sm text-brand-light hover:underline">
+    <button
+      onClick={handleLogout}
+      className="rounded-md bg-gradient-to-r from-[#be1a1a] to-[#580c0c] px-3 py-1.5 text-sm font-medium text-white shadow-sm transition hover:brightness-110"
+    >
       ออกจากระบบ
     </button>
   );

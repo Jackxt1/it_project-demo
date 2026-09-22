@@ -1,0 +1,12 @@
+node_modules/
+.expo/
+dist/
+build/
+.next/
+.DS_Store
+.AppleDouble
+.LSOverride
+.env
+.env*.local
+
+

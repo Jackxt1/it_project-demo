@@ -69,7 +69,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('ยังไม่มีรถที่บันทึกไว้'), findsOneWidget);
-      expect(find.text('01 ข้อมูลรถของคุณ'), findsOneWidget);
+      expect(find.text('ข้อมูลรถของคุณ'), findsOneWidget);
 
       // The button starts disabled: no brand/model or license plate yet.
       final buttonFinder = find.widgetWithText(FilledButton, 'บันทึกและไปต่อ');
@@ -121,7 +121,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Honda Civic 2020'), findsOneWidget);
-      expect(find.text('01 รถที่บันทึกไว้'), findsOneWidget);
+      expect(find.text('รถที่บันทึกไว้'), findsOneWidget);
       expect(find.text('ยังไม่มีรถที่บันทึกไว้'), findsNothing);
 
       final buttonFinder = find.widgetWithText(

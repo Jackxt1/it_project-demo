@@ -7,6 +7,7 @@ import '../../models/booking_draft.dart';
 import '../../models/product.dart';
 import '../../models/service_item.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/bounce_on_change.dart';
 import 'step1_vehicle.dart';
 import 'step2_product.dart';
 import 'step3_schedule.dart';
@@ -167,7 +168,29 @@ class _BookingFlowScreenState extends State<BookingFlowScreen> {
                   : _handleBack,
             ),
             Expanded(
-              child: _pickingService ? _buildServicePicker() : _buildStep(),
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 400),
+                switchInCurve: Curves.easeOut,
+                switchOutCurve: Curves.easeIn,
+                transitionBuilder: (child, animation) {
+                  final slide = Tween<Offset>(
+                    begin: const Offset(0.06, 0),
+                    end: Offset.zero,
+                  ).animate(
+                    CurvedAnimation(parent: animation, curve: Curves.easeOutBack),
+                  );
+                  return FadeTransition(
+                    opacity: animation,
+                    child: SlideTransition(position: slide, child: child),
+                  );
+                },
+                child: KeyedSubtree(
+                  key: ValueKey(_pickingService ? 'picker' : _step),
+                  child: _pickingService
+                      ? _buildServicePicker()
+                      : _buildStep(),
+                ),
+              ),
             ),
           ],
         ),
@@ -268,78 +291,97 @@ class _BookingHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      color: AppColors.splashBg,
-      padding: const EdgeInsets.fromLTRB(4, 4, 16, 16),
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        border: Border(bottom: BorderSide(color: Colors.grey.shade200)),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              IconButton(
-                onPressed: onBack,
-                icon: const Icon(Icons.arrow_back, color: Colors.white),
-              ),
-              const Text(
-                'BKK CAR GLASS & FLIM',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w900,
-                  fontSize: 14,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  stepLabel,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 20,
-                    fontWeight: FontWeight.w700,
+              InkWell(
+                onTap: onBack,
+                borderRadius: BorderRadius.circular(20),
+                child: Container(
+                  width: 36,
+                  height: 36,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade100,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.arrow_back_ios_new,
+                    size: 16,
+                    color: Colors.black87,
                   ),
                 ),
-                if (stepIndex != null)
-                  Container(
+              ),
+              const SizedBox(width: 10),
+              const Expanded(
+                child: Text(
+                  'BKK CAR GLASS & FLIM',
+                  style: TextStyle(
+                    color: AppColors.primaryDark,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 12,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+              ),
+              if (stepIndex != null)
+                BounceOnChange(
+                  trigger: stepIndex!,
+                  child: Container(
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 4,
+                      horizontal: 12,
+                      vertical: 5,
                     ),
                     decoration: BoxDecoration(
-                      color: Colors.white24,
-                      borderRadius: BorderRadius.circular(12),
+                      color: AppColors.primaryDark,
+                      borderRadius: BorderRadius.circular(20),
                     ),
                     child: Text(
                       '$stepIndex / 5',
-                      style: const TextStyle(color: Colors.white, fontSize: 12),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                   ),
-              ],
+                ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Text(
+            stepLabel,
+            style: const TextStyle(
+              color: Colors.black87,
+              fontSize: 22,
+              fontWeight: FontWeight.w800,
             ),
           ),
           if (stepIndex != null) ...[
             const SizedBox(height: 12),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Row(
-                children: List.generate(5, (i) {
-                  final filled = i < stepIndex!;
-                  return Expanded(
-                    child: Container(
-                      height: 4,
-                      margin: EdgeInsets.only(right: i < 4 ? 4 : 0),
-                      decoration: BoxDecoration(
-                        color: filled ? AppColors.primary : Colors.white24,
-                        borderRadius: BorderRadius.circular(2),
-                      ),
+            Row(
+              children: List.generate(5, (i) {
+                final filled = i < stepIndex!;
+                return Expanded(
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 450),
+                    curve: Curves.easeOutBack,
+                    height: filled ? 5 : 4,
+                    margin: EdgeInsets.only(right: i < 4 ? 6 : 0),
+                    decoration: BoxDecoration(
+                      color: filled ? AppColors.primary : AppColors.surfaceLight,
+                      borderRadius: BorderRadius.circular(2),
                     ),
-                  );
-                }),
-              ),
+                  ),
+                );
+              }),
             ),
           ],
         ],

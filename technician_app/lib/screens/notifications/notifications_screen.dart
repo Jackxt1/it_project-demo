@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../api/api_client.dart';
 import '../../api/notification_service.dart';
 import '../../models/notification_item.dart';
+import '../../state/technician_queue_controller.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/tech_header.dart';
 
@@ -29,6 +30,12 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       final items = await NotificationService.instance.fetchMine();
       if (!mounted) return;
       setState(() => _items = items);
+      // Resyncs the shared badge (see MainShell/TechBrandRow) with reality
+      // — the live socket only ever increments it, so without this a
+      // manual refresh/mark-read here would otherwise leave it stale.
+      TechnicianQueueController.instance.setUnreadNotificationCount(
+        items.where((n) => !n.isRead).length,
+      );
     } on ApiException catch (e) {
       if (!mounted) return;
       setState(() => _error = e.message);

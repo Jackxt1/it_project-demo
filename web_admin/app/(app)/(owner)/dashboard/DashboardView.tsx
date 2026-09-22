@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { apiGet, ApiError } from '@/lib/api';
 import type { BookingsByStatus, DashboardSummary } from '@/lib/types';
 import StatusBarChart from '@/components/StatusBarChart';
+import BookingsTrendChart from '@/components/BookingsTrendChart';
 
 const STATUS_LABELS: Record<string, string> = {
   PENDING: 'รอดำเนินการ',
@@ -38,7 +39,7 @@ export default function DashboardView() {
 
   return (
     <div className="space-y-6">
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2">
         <div className="rounded-lg bg-white p-4 shadow-sm">
           <p className="text-sm text-gray-500">การจองวันนี้</p>
           <p className="text-2xl font-bold text-brand-deep">{summary.bookingsToday}</p>
@@ -48,10 +49,16 @@ export default function DashboardView() {
           <p className="text-2xl font-bold text-brand-deep">{summary.bookingsThisMonth}</p>
         </div>
         <div className="rounded-lg bg-white p-4 shadow-sm">
+          <p className="text-sm text-gray-500">รายได้วันนี้</p>
+          <p className="text-2xl font-bold text-brand-deep">{summary.revenueToday.toLocaleString()} บาท</p>
+        </div>
+        <div className="rounded-lg bg-white p-4 shadow-sm">
           <p className="text-sm text-gray-500">รายได้เดือนนี้</p>
           <p className="text-2xl font-bold text-brand-deep">{summary.revenueThisMonth.toLocaleString()} บาท</p>
         </div>
       </div>
+
+      <BookingsTrendChart />
 
       <div className="rounded-lg bg-white p-4 shadow-sm">
         <h2 className="mb-3 font-semibold text-brand-deep">จำนวนการจองตามสถานะ</h2>

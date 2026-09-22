@@ -1,6 +1,6 @@
 import type { BookingStatus } from '@/lib/types';
 
-const LABELS: Record<BookingStatus, string> = {
+export const STATUS_LABELS: Record<BookingStatus, string> = {
   PENDING: 'รอดำเนินการ',
   CONFIRMED: 'ยืนยันแล้ว',
   IN_PROGRESS: 'กำลังดำเนินการ',
@@ -18,6 +18,6 @@ const COLORS: Record<BookingStatus, string> = {
 
 export default function StatusBadge({ status }: { status: BookingStatus }) {
   return (
-    <span className={`rounded-full px-3 py-1 text-xs font-medium ${COLORS[status]}`}>{LABELS[status]}</span>
+    <span className={`rounded-full px-3 py-1 text-xs font-medium ${COLORS[status]}`}>{STATUS_LABELS[status]}</span>
   );
 }

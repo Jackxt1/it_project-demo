@@ -8,6 +8,11 @@ import '../../models/booking.dart';
 import '../../models/booking_draft.dart';
 import '../../models/slot.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/bounce_on_change.dart';
+import '../../widgets/booking_summary_card.dart';
+import '../../widgets/bouncy_button.dart';
+import '../../widgets/fade_slide_in.dart';
+import '../../widgets/section_number_title.dart';
 
 const Map<String, String> _installAreaLabels = {
   'FULL': 'รอบคัน',
@@ -209,17 +214,11 @@ class _Step3ScheduleState extends State<Step3Schedule> {
               children: [
                 _buildSummaryCard(),
                 const SizedBox(height: 20),
-                const Text(
-                  '01 เลือกวันที่',
-                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
-                ),
+                const SectionNumberTitle('01 เลือกวันที่'),
                 const SizedBox(height: 12),
                 _buildCalendar(),
                 const SizedBox(height: 24),
-                const Text(
-                  '02 เลือกเวลา',
-                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
-                ),
+                const SectionNumberTitle('02 เลือกเวลา'),
                 const SizedBox(height: 12),
                 _buildSlotGrid(),
               ],
@@ -232,22 +231,12 @@ class _Step3ScheduleState extends State<Step3Schedule> {
   }
 
   Widget _buildSummaryCard() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceLight,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Text(
-              _summaryCardText,
-              style: const TextStyle(fontWeight: FontWeight.w700),
-            ),
-          ),
-          TextButton(onPressed: widget.onBack, child: const Text('เปลี่ยน')),
-        ],
+    return BookingSummaryCard(
+      icon: Icons.directions_car,
+      title: _summaryCardText,
+      trailing: TextButton(
+        onPressed: widget.onBack,
+        child: const Text('เปลี่ยน'),
       ),
     );
   }
@@ -290,12 +279,16 @@ class _Step3ScheduleState extends State<Step3Schedule> {
     return Wrap(
       spacing: 12,
       runSpacing: 12,
-      children: _slots.map((slot) {
+      children: _slots.asMap().entries.map((entry) {
+        final slot = entry.value;
         final selected = _selectedSlot == slot.timeSlot;
-        return _SlotChip(
-          slot: slot,
-          selected: selected,
-          onTap: slot.available ? () => _selectSlot(slot.timeSlot) : null,
+        return FadeSlideIn(
+          index: entry.key,
+          child: _SlotChip(
+            slot: slot,
+            selected: selected,
+            onTap: slot.available ? () => _selectSlot(slot.timeSlot) : null,
+          ),
         );
       }).toList(),
     );
@@ -329,19 +322,21 @@ class _Step3ScheduleState extends State<Step3Schedule> {
               ),
             ],
             const SizedBox(height: 8),
-            FilledButton(
-              style: FilledButton.styleFrom(backgroundColor: AppColors.primary),
-              onPressed: _canConfirm ? _confirm : null,
-              child: _submitting
-                  ? const SizedBox(
-                      height: 20,
-                      width: 20,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: Colors.white,
-                      ),
-                    )
-                  : Text(confirmLabel),
+            BouncyButton(
+              child: FilledButton(
+                style: FilledButton.styleFrom(backgroundColor: AppColors.primary),
+                onPressed: _canConfirm ? _confirm : null,
+                child: _submitting
+                    ? const SizedBox(
+                        height: 20,
+                        width: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : Text(confirmLabel),
+              ),
             ),
           ],
         ),
@@ -363,36 +358,39 @@ class _SlotChip extends StatelessWidget {
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(12),
-      child: Container(
-        width: 88,
-        padding: const EdgeInsets.symmetric(vertical: 10),
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: full
-              ? Colors.grey.shade200
-              : (selected ? AppColors.primaryDark : Colors.white),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: full ? Colors.grey.shade300 : AppColors.primary,
-          ),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              slot.timeSlot,
-              style: TextStyle(
-                color: full
-                    ? Colors.grey.shade500
-                    : (selected ? Colors.white : AppColors.primary),
-                fontWeight: FontWeight.w700,
-              ),
+      child: BounceOnChange(
+        trigger: selected,
+        child: Container(
+          width: 88,
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: full
+                ? Colors.grey.shade200
+                : (selected ? AppColors.primaryDark : Colors.white),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: full ? Colors.grey.shade300 : AppColors.primary,
             ),
-            if (full) ...[
-              const SizedBox(height: 2),
-              Text('เต็ม', style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                slot.timeSlot,
+                style: TextStyle(
+                  color: full
+                      ? Colors.grey.shade500
+                      : (selected ? Colors.white : AppColors.primary),
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              if (full) ...[
+                const SizedBox(height: 2),
+                Text('เต็ม', style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
+              ],
             ],
-          ],
+          ),
         ),
       ),
     );

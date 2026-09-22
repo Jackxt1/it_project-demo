@@ -118,11 +118,21 @@ export interface ChatInboxItem {
 export interface DashboardSummary {
   bookingsToday: number;
   bookingsThisMonth: number;
+  revenueToday: number;
   revenueThisMonth: number;
 }
 
 export interface BookingsByStatus {
   statusCounts: Record<string, number>;
+}
+
+export interface TrendPoint {
+  label: string;
+  count: number;
+}
+
+export interface BookingsTrend {
+  points: TrendPoint[];
 }
 
 export interface CurrentUser {

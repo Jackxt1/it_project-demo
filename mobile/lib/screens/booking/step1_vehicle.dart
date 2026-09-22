@@ -5,6 +5,9 @@ import '../../api/vehicle_service.dart';
 import '../../models/booking_draft.dart';
 import '../../models/vehicle.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/bounce_on_change.dart';
+import '../../widgets/bouncy_button.dart';
+import '../../widgets/fade_slide_in.dart';
 import '../../widgets/vehicle_form.dart';
 
 /// Step 1/5 ของ booking flow (Figma pages 8-9): เลือกรถที่บันทึกไว้ หรือ
@@ -89,7 +92,12 @@ class _Step1VehicleState extends State<Step1Vehicle> {
   bool get _formValid => _formController.isValid;
 
   void _selectVehicle(Vehicle vehicle) {
-    setState(() => _selected = vehicle);
+    setState(() {
+      _selected = vehicle;
+      // Picking a saved vehicle abandons whatever was mid-entry in "02
+      // เพิ่มคันใหม่" — reset it so it doesn't keep showing stale values.
+      _formController.reset();
+    });
   }
 
   /// Typing into the "add new vehicle" form while an existing vehicle is
@@ -166,20 +174,23 @@ class _Step1VehicleState extends State<Step1Vehicle> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Text(
-          '01 รถที่บันทึกไว้',
+          'รถที่บันทึกไว้',
           style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
         ),
         const SizedBox(height: 12),
-        ..._vehicles.map(
-          (v) => _VehicleCard(
-            vehicle: v,
-            selected: _selected?.id == v.id,
-            onTap: () => _selectVehicle(v),
+        ..._vehicles.asMap().entries.map(
+          (entry) => FadeSlideIn(
+            index: entry.key,
+            child: _VehicleCard(
+              vehicle: entry.value,
+              selected: _selected?.id == entry.value.id,
+              onTap: () => _selectVehicle(entry.value),
+            ),
           ),
         ),
         const SizedBox(height: 24),
         const Text(
-          '02 เพิ่มคันใหม่',
+          'เพิ่มคันใหม่',
           style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
         ),
         const SizedBox(height: 12),
@@ -194,20 +205,31 @@ class _Step1VehicleState extends State<Step1Vehicle> {
       children: [
         Container(
           width: double.infinity,
-          padding: const EdgeInsets.all(20),
+          padding: const EdgeInsets.symmetric(vertical: 28),
           alignment: Alignment.center,
           decoration: BoxDecoration(
             color: Colors.grey.shade100,
             borderRadius: BorderRadius.circular(16),
           ),
-          child: const Text(
-            'ยังไม่มีรถที่บันทึกไว้',
-            style: TextStyle(color: Colors.black54),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.directions_car_outlined,
+                size: 40,
+                color: Colors.grey.shade400,
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'ยังไม่มีรถที่บันทึกไว้',
+                style: TextStyle(color: Colors.black54),
+              ),
+            ],
           ),
         ),
         const SizedBox(height: 24),
         const Text(
-          '01 ข้อมูลรถของคุณ',
+          'ข้อมูลรถของคุณ',
           style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
         ),
         const SizedBox(height: 12),
@@ -217,10 +239,23 @@ class _Step1VehicleState extends State<Step1Vehicle> {
   }
 
   Widget _buildForm() {
-    return VehicleFormFields(
-      controller: _formController,
-      onChanged: _onFormFieldChanged,
-      errorText: _saveError,
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 200),
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        border: Border.all(
+          color: _formController.vehicleType != null
+              ? AppColors.primary
+              : Colors.grey.shade300,
+        ),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: VehicleFormFields(
+        controller: _formController,
+        onChanged: _onFormFieldChanged,
+        errorText: _saveError,
+      ),
     );
   }
 
@@ -233,21 +268,23 @@ class _Step1VehicleState extends State<Step1Vehicle> {
       top: false,
       child: Padding(
         padding: const EdgeInsets.all(16),
-        child: FilledButton(
-          style: FilledButton.styleFrom(backgroundColor: AppColors.primary),
-          onPressed: enabled
-              ? (usingExisting ? _confirmSelected : _saveNewVehicle)
-              : null,
-          child: _saving
-              ? const SizedBox(
-                  height: 20,
-                  width: 20,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    color: Colors.white,
-                  ),
-                )
-              : Text(label),
+        child: BouncyButton(
+          child: FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: AppColors.primary),
+            onPressed: enabled
+                ? (usingExisting ? _confirmSelected : _saveNewVehicle)
+                : null,
+            child: _saving
+                ? const SizedBox(
+                    height: 20,
+                    width: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
+                  )
+                : Text(label),
+          ),
         ),
       ),
     );
@@ -273,26 +310,40 @@ class _VehicleCard extends StatelessWidget {
 
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
+      elevation: 0,
+      color: Colors.white,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(16),
         side: BorderSide(
           color: selected ? AppColors.primary : Colors.grey.shade300,
+          width: selected ? 1.2 : 1,
         ),
       ),
       child: ListTile(
         onTap: onTap,
-        leading: const CircleAvatar(
-          backgroundColor: AppColors.surfaceLight,
-          child: Icon(Icons.directions_car, color: AppColors.primary),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        leading: Container(
+          width: 44,
+          height: 44,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: AppColors.primary,
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: const Icon(Icons.directions_car, color: Colors.white, size: 22),
         ),
-        title: Text(title),
+        title: Text(title, style: const TextStyle(fontWeight: FontWeight.w700)),
         subtitle: Text(vehicle.licensePlate),
         // A plain icon (rather than [Radio]) avoids needing a [RadioGroup]
         // ancestor just to show single-select state across cards that are
         // built independently.
-        trailing: Icon(
-          selected ? Icons.radio_button_checked : Icons.radio_button_off,
-          color: selected ? AppColors.primary : Colors.grey,
+        trailing: BounceOnChange(
+          trigger: selected,
+          child: Icon(
+            selected ? Icons.radio_button_checked : Icons.radio_button_off,
+            size: 32,
+            color: selected ? AppColors.primary : Colors.grey,
+          ),
         ),
       ),
     );

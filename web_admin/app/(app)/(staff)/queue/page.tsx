@@ -1,3 +1,4 @@
+import { Suspense } from 'react';
 import { cookies } from 'next/headers';
 import { decodeToken, SESSION_COOKIE } from '@/lib/session';
 import { backendFetch } from '@/lib/backend';
@@ -19,7 +20,9 @@ export default async function QueuePage() {
   return (
     <div>
       <h1 className="mb-4 text-xl font-bold text-brand-deep">คิวงาน</h1>
-      <QueueBoard role={role} userId={userId} />
+      <Suspense fallback={null}>
+        <QueueBoard role={role} userId={userId} />
+      </Suspense>
     </div>
   );
 }

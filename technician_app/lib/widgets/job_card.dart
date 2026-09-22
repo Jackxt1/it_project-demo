@@ -89,10 +89,10 @@ class JobCard extends StatelessWidget {
                     width: 36,
                     height: 36,
                     decoration: BoxDecoration(
-                      color: highlight ? Colors.white.withValues(alpha: 0.25) : AppColors.ink100,
+                      color: highlight ? Colors.white.withValues(alpha: 0.25) : AppColors.primary,
                       shape: BoxShape.circle,
                     ),
-                    child: Icon(Icons.person, size: 18, color: highlight ? Colors.white : AppColors.ink700),
+                    child: Icon(Icons.person, size: 18, color: Colors.white),
                   ),
                   const SizedBox(width: 10),
                   Expanded(
@@ -139,7 +139,7 @@ class JobCard extends StatelessWidget {
                         style: TextStyle(
                           fontSize: 15,
                           fontWeight: FontWeight.w800,
-                          color: highlight ? Colors.white : AppColors.ink900,
+                          color: highlight ? Colors.white : AppColors.primary,
                         ),
                       ),
                     ],
@@ -169,11 +169,11 @@ class JobCard extends StatelessWidget {
                       ],
                     ),
                   ),
-                  Icon(Icons.storefront_outlined, size: 12, color: highlight ? Colors.white70 : AppColors.ink500),
+                  Icon(Icons.storefront_outlined, size: 12, color: highlight ? Colors.white70 : AppColors.primary),
                   const SizedBox(width: 2),
                   Text(
                     'ที่ร้าน',
-                    style: TextStyle(fontSize: 11.5, color: highlight ? Colors.white70 : AppColors.ink500),
+                    style: TextStyle(fontSize: 11.5, color: highlight ? Colors.white70 : AppColors.primary),
                   ),
                 ],
               ),

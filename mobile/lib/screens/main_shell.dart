@@ -11,6 +11,7 @@ import 'bookings/bookings_screen.dart';
 import 'home/home_screen.dart';
 import 'notifications/notifications_screen.dart';
 import 'profile/profile_screen.dart';
+import 'reviews/reviews_screen.dart';
 
 class MainShell extends StatefulWidget {
   const MainShell({super.key, this.pages, this.notificationSocket});
@@ -32,8 +33,6 @@ class _MainShellState extends State<MainShell> {
   int _unreadNotificationCount = 0;
   final GlobalKey<BookingsScreenState> _bookingsKey =
       GlobalKey<BookingsScreenState>();
-  final GlobalKey<NotificationsScreenState> _notificationsKey =
-      GlobalKey<NotificationsScreenState>();
 
   NotificationSocketConnector? _notificationSocket;
 
@@ -66,11 +65,6 @@ class _MainShellState extends State<MainShell> {
   void _onLiveNotification(NotificationItem notification) {
     if (!mounted) return;
     setState(() => _unreadNotificationCount += 1);
-    // The notifications tab may already be mounted (it lives inside an
-    // IndexedStack and never rebuilds on its own), so without this the new
-    // item stays invisible there until the next full app restart even
-    // though the toast below just announced it.
-    _notificationsKey.currentState?.reload();
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         backgroundColor: AppColors.primary,
@@ -92,15 +86,27 @@ class _MainShellState extends State<MainShell> {
         action: SnackBarAction(
           label: 'ดู',
           textColor: Colors.white,
-          onPressed: () => _switchToTab(2),
+          onPressed: _openNotifications,
         ),
       ),
     );
   }
 
-  /// Best-effort initial fetch just to seed the bottom-nav badge; the count
-  /// then stays in sync via [_onUnreadCountChanged], which
-  /// [NotificationsScreen] calls after every load/mark-read/mark-all-read.
+  /// Pushes the แจ้งเตือน screen — it's reached from the bell icon on the
+  /// home screen (and this SnackBar's "ดู" action) rather than living as a
+  /// bottom-nav tab.
+  void _openNotifications() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) =>
+            NotificationsScreen(onUnreadCountChanged: _onUnreadCountChanged),
+      ),
+    );
+  }
+
+  /// Best-effort initial fetch just to seed the bell badge; the count then
+  /// stays in sync via [_onUnreadCountChanged], which [NotificationsScreen]
+  /// calls after every load/mark-read/mark-all-read.
   Future<void> _loadUnreadNotificationCount() async {
     try {
       final items = await NotificationService.instance.fetchMine();
@@ -161,8 +167,6 @@ class _MainShellState extends State<MainShell> {
     setState(() => _currentIndex = index);
     if (index == 1) {
       _bookingsKey.currentState?.reload();
-    } else if (index == 2) {
-      _notificationsKey.currentState?.reload();
     }
   }
 
@@ -171,12 +175,11 @@ class _MainShellState extends State<MainShell> {
       onBookService: _handleBookService,
       onBookProduct: _handleBookProduct,
       onTrackStatus: _goToBookingsTab,
+      onOpenNotifications: _openNotifications,
+      unreadNotificationCount: _unreadNotificationCount,
     ),
     BookingsScreen(key: _bookingsKey),
-    NotificationsScreen(
-      key: _notificationsKey,
-      onUnreadCountChanged: _onUnreadCountChanged,
-    ),
+    const ReviewsScreen(),
     ProfileScreen(onViewBookingHistory: _goToBookingsTab),
   ];
 
@@ -186,41 +189,107 @@ class _MainShellState extends State<MainShell> {
 
     return Scaffold(
       body: IndexedStack(index: _currentIndex, children: pages),
-      floatingActionButton: FloatingActionButton(
-        backgroundColor: AppColors.primary,
-        shape: const CircleBorder(),
-        onPressed: () => _handleBookService(null),
-        child: const Icon(Icons.directions_car, color: Colors.white),
-      ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _currentIndex,
-        onTap: _switchToTab,
-        selectedItemColor: AppColors.primary,
-        unselectedItemColor: Colors.black54,
-        type: BottomNavigationBarType.fixed,
-        items: [
-          const BottomNavigationBarItem(
-            icon: Icon(Icons.home),
-            label: 'หน้าแรก',
+      bottomNavigationBar: _PillNavBar(currentIndex: _currentIndex, onTap: _switchToTab),
+    );
+  }
+}
+
+class _PillNavItem {
+  const _PillNavItem({
+    required this.filledIcon,
+    required this.outlinedIcon,
+    required this.label,
+  });
+  final IconData filledIcon;
+  final IconData outlinedIcon;
+  final String label;
+}
+
+const List<_PillNavItem> _navItems = [
+  _PillNavItem(filledIcon: Icons.home, outlinedIcon: Icons.home_outlined, label: 'หน้าแรก'),
+  _PillNavItem(
+    filledIcon: Icons.calendar_month,
+    outlinedIcon: Icons.calendar_month_outlined,
+    label: 'การจอง',
+  ),
+  _PillNavItem(filledIcon: Icons.star, outlinedIcon: Icons.star_border, label: 'รีวิว'),
+  _PillNavItem(filledIcon: Icons.person, outlinedIcon: Icons.person_outline, label: 'โปรไฟล์'),
+];
+
+/// Floating white bar where the selected tab's icon bulges up out of the
+/// bar in a red circle, with its label sitting underneath — matching the
+/// reference design the user shared (adapted from its dark bar to white,
+/// per the user's confirmed choice).
+class _PillNavBar extends StatelessWidget {
+  const _PillNavBar({required this.currentIndex, required this.onTap});
+
+  final int currentIndex;
+  final ValueChanged<int> onTap;
+
+  static const double _barHeight = 72;
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+        child: Container(
+          height: _barHeight,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(32),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.08),
+                blurRadius: 16,
+                offset: const Offset(0, 4),
+              ),
+            ],
           ),
-          const BottomNavigationBarItem(
-            icon: Icon(Icons.search),
-            label: 'การจอง',
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: List.generate(_navItems.length, (i) {
+              final item = _navItems[i];
+              final selected = i == currentIndex;
+              final displayIcon = selected ? item.filledIcon : item.outlinedIcon;
+              final iconColor = selected ? Colors.white : Colors.grey.shade500;
+              final iconWidget = Icon(displayIcon, size: 20, color: iconColor);
+              return Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(20),
+                  onTap: () => onTap(i),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          width: 34,
+                          height: 34,
+                          decoration: BoxDecoration(
+                            color: selected ? AppColors.primary : Colors.transparent,
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Center(child: iconWidget),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          item.label,
+                          style: TextStyle(
+                            color: selected ? AppColors.primary : Colors.grey.shade500,
+                            fontSize: 10,
+                            fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            }),
           ),
-          BottomNavigationBarItem(
-            icon: Badge(
-              label: Text('$_unreadNotificationCount'),
-              isLabelVisible: _unreadNotificationCount > 0,
-              child: const Icon(Icons.notifications),
-            ),
-            label: 'แจ้งเตือน',
-          ),
-          const BottomNavigationBarItem(
-            icon: Icon(Icons.person),
-            label: 'โปรไฟล์',
-          ),
-        ],
+        ),
       ),
     );
   }

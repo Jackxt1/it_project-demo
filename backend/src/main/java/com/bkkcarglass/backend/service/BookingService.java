@@ -126,7 +126,9 @@ public class BookingService {
                 .changedBy(currentUser)
                 .build());
 
-        return toResponse(booking);
+        BookingResponse response = toResponse(booking);
+        messagingTemplate.convertAndSend("/topic/admin/bookings", response);
+        return response;
     }
 
     @Transactional(readOnly = true)
@@ -262,6 +264,7 @@ public class BookingService {
     @Transactional
     public BookingResponse assignTechnician(Long id, BookingTechnicianAssignRequest request) {
         Booking booking = getEntity(id);
+        User currentUser = currentUserService.getCurrentUser();
 
         Technician technician = technicianRepository.findById(request.getTechnicianId())
                 .orElseThrow(() -> new ResourceNotFoundException("Technician", request.getTechnicianId()));
@@ -270,12 +273,46 @@ public class BookingService {
         }
 
         booking.setTechnician(technician);
+
+        // Assigning a technician to a job that's still awaiting confirmation
+        // confirms it automatically — the admin no longer needs a separate
+        // "เปลี่ยนสถานะ" step for what assigning already implies.
+        boolean autoConfirmed = booking.getStatus() == BookingStatus.PENDING;
+        if (autoConfirmed) {
+            booking.setStatus(BookingStatus.CONFIRMED);
+        }
+
         booking = bookingRepository.save(booking);
         BookingResponse response = toResponse(booking);
+
+        if (autoConfirmed) {
+            historyRepository.save(BookingStatusHistory.builder()
+                    .booking(booking)
+                    .status(BookingStatus.CONFIRMED)
+                    .note("ยืนยันอัตโนมัติจากการมอบหมายช่าง")
+                    .changedBy(currentUser)
+                    .build());
+            notificationService.notifyUser(
+                    booking.getUser(),
+                    "อัปเดตสถานะการจอง",
+                    statusMessage(BookingStatus.CONFIRMED),
+                    NotificationType.BOOKING_STATUS,
+                    booking);
+        }
 
         if (technician.getUser() != null) {
             messagingTemplate.convertAndSend(
                     "/topic/technician/" + technician.getUser().getId() + "/queue", response);
+            notificationService.notifyUser(
+                    technician.getUser(),
+                    "งานใหม่เข้ามาแล้ว",
+                    "%s — %s วันที่ %s เวลา %s".formatted(
+                            booking.getService() != null ? booking.getService().getName() : "งาน",
+                            booking.getUser().getFullName(),
+                            booking.getBookingDate(),
+                            booking.getTimeSlot()),
+                    NotificationType.JOB_ASSIGNED,
+                    booking);
         }
 
         return response;

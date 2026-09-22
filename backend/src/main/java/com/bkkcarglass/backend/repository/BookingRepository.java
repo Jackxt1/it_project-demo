@@ -36,6 +36,12 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
     @Query("SELECT b.status, COUNT(b) FROM Booking b GROUP BY b.status")
     List<Object[]> countGroupedByStatus();
 
+    @Query("SELECT b.bookingDate, COUNT(b) FROM Booking b " +
+            "WHERE b.bookingDate BETWEEN :from AND :to GROUP BY b.bookingDate")
+    List<Object[]> countGroupedByBookingDateBetween(
+            @Param("from") LocalDate from,
+            @Param("to") LocalDate to);
+
     boolean existsByOrderCode(String orderCode);
 
     List<Booking> findByPaymentStatusOrderBySlipSubmittedAtAsc(PaymentStatus paymentStatus);

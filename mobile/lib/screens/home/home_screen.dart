@@ -4,53 +4,50 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../../api/api_client.dart';
-import '../../api/auth_service.dart';
 import '../../api/catalog_service.dart';
 import '../../models/product.dart';
 import '../../models/service_item.dart';
 import '../../theme/app_theme.dart';
 import '../chat/chatbot_screen.dart';
-import '../reviews/reviews_screen.dart';
 
 const String _comingSoonMessage = 'เร็วๆ นี้';
 
 final NumberFormat _priceFormat = NumberFormat('#,###');
 
 class _QuickAction {
-  const _QuickAction(this.label, this.icon, {this.matchKeyword});
+  const _QuickAction(this.label, this.icon, {required this.matchKeyword});
 
   final String label;
   final IconData icon;
 
   /// Keyword used to find the matching [ServiceItem] by substring — e.g.
   /// "ฟิล์ม" matches a backend service named "ติดฟิล์มกรองแสงรถยนต์" or just
-  /// "ติดฟิล์ม" regardless of how admins phrased the full name. Null for
-  /// actions (like "รีวิว") that don't book a service.
-  final String? matchKeyword;
+  /// "ติดฟิล์ม" regardless of how admins phrased the full name.
+  final String matchKeyword;
 }
 
 const List<_QuickAction> _quickActions = [
-  _QuickAction('ติดฟิล์มกรองแสง', Icons.window_outlined, matchKeyword: 'ฟิล์ม'),
-  _QuickAction('ซ่อมกระจก', Icons.build_outlined, matchKeyword: 'ซ่อม'),
-  _QuickAction('ล้างรถ', Icons.local_car_wash_outlined, matchKeyword: 'ล้าง'),
-  _QuickAction('รีวิว', Icons.star_outline),
+  _QuickAction('ติดฟิล์มรถ', Icons.tonality, matchKeyword: 'ฟิล์ม'),
+  _QuickAction('ซ่อมกระจก', Icons.car_repair, matchKeyword: 'ซ่อม'),
+  _QuickAction('ล้างรถ', Icons.local_car_wash, matchKeyword: 'ล้าง'),
 ];
 
 /// หน้าแรก (Home) ตาม Figma page 7.
 ///
-/// แสดงคำทักทายจาก [AuthService.instance.session], ปุ่มจองบริการ/ติดตาม
-/// สถานะ, ช่องค้นหาที่กรอง "บริการยอดนิยม", แบนเนอร์, การ์ด "บริการด่วน" 4
-/// ใบ และ grid สินค้ายอดนิยมจาก [CatalogService.instance].
+/// แสดงโลโก้ร้าน, ปุ่มจองบริการ/ติดตามสถานะ, ช่องค้นหาที่กรอง "บริการยอดนิยม",
+/// แบนเนอร์, การ์ด "บริการด่วน" 3 ใบ และ grid สินค้ายอดนิยมจาก [CatalogService.instance].
 class HomeScreen extends StatefulWidget {
   const HomeScreen({
     super.key,
     this.onBookService,
     this.onBookProduct,
     this.onTrackStatus,
+    this.onOpenNotifications,
+    this.unreadNotificationCount = 0,
   });
 
   /// เรียกเมื่อผู้ใช้กด "จองบริการ", แบนเนอร์ "จองเลย" หรือการ์ด
-  /// "บริการด่วน" 3 ใบแรก — ส่ง [ServiceItem] ที่ match จากชื่อบริการ หรือ
+  /// "บริการด่วน" — ส่ง [ServiceItem] ที่ match จากชื่อบริการ หรือ
   /// null เมื่อไม่ได้ระบุบริการเจาะจง (Task 4 จะผูกไป flow จองจริง).
   final void Function(ServiceItem?)? onBookService;
 
@@ -61,6 +58,13 @@ class HomeScreen extends StatefulWidget {
 
   /// เรียกเมื่อผู้ใช้กด "ติดตามสถานะ" — ปกติ MainShell จะสลับไปแท็บการจอง.
   final VoidCallback? onTrackStatus;
+
+  /// เรียกเมื่อผู้ใช้แตะไอคอนกระดิ่งแจ้งเตือน — ปกติ MainShell จะเปิดหน้า
+  /// แจ้งเตือนแบบ push (ไม่ใช่แท็บล่างอีกต่อไป).
+  final VoidCallback? onOpenNotifications;
+
+  /// จำนวนแจ้งเตือนที่ยังไม่อ่าน แสดงเป็น badge บนไอคอนกระดิ่ง.
+  final int unreadNotificationCount;
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -134,20 +138,8 @@ class _HomeScreenState extends State<HomeScreen> {
     return null;
   }
 
-  void _openReviews() {
-    Navigator.of(
-      context,
-    ).push(MaterialPageRoute(builder: (_) => const ReviewsScreen()));
-  }
-
   void _handleQuickAction(_QuickAction action) {
-    final keyword = action.matchKeyword;
-    if (keyword == null) {
-      // The only keyword-less quick action is "รีวิว".
-      _openReviews();
-      return;
-    }
-    widget.onBookService?.call(_matchService(keyword));
+    widget.onBookService?.call(_matchService(action.matchKeyword));
   }
 
   void _handleProductTap(Product product) {
@@ -176,8 +168,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final fullName = AuthService.instance.session?.fullName ?? '';
-
     final products = _filteredProducts;
 
     return Stack(
@@ -191,7 +181,12 @@ class _HomeScreenState extends State<HomeScreen> {
                 sliver: SliverToBoxAdapter(
                   child: Column(
                     children: [
-                      _TopBar(fullName: fullName, onIconTap: _showComingSoon),
+                      _TopBar(
+                        onNotificationsTap:
+                            widget.onOpenNotifications ?? _showComingSoon,
+                        onProfileTap: _showComingSoon,
+                        unreadNotificationCount: widget.unreadNotificationCount,
+                      ),
                       const SizedBox(height: 16),
                       _ActionButtons(
                         onBookService: () => widget.onBookService?.call(null),
@@ -300,37 +295,42 @@ class _HomeScreenState extends State<HomeScreen> {
 }
 
 class _TopBar extends StatelessWidget {
-  const _TopBar({required this.fullName, required this.onIconTap});
+  const _TopBar({
+    required this.onNotificationsTap,
+    required this.onProfileTap,
+    this.unreadNotificationCount = 0,
+  });
 
-  final String fullName;
-  final VoidCallback onIconTap;
+  final VoidCallback onNotificationsTap;
+  final VoidCallback onProfileTap;
+  final int unreadNotificationCount;
 
   @override
   Widget build(BuildContext context) {
     return Row(
       children: [
         Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'สวัสดี, $fullName',
-                style: const TextStyle(fontSize: 14, color: Colors.black54),
-              ),
-              const SizedBox(height: 2),
-              const Text(
-                'BKK CAR GLASS & FLIM',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
-              ),
-            ],
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: Image.asset(
+              'assets/image/red_logo_cropped.png',
+              height: 40,
+              fit: BoxFit.contain,
+            ),
           ),
         ),
         IconButton(
-          onPressed: onIconTap,
-          icon: const Icon(Icons.notifications_none),
+          onPressed: onNotificationsTap,
+          icon: Badge(
+            label: Text('$unreadNotificationCount'),
+            isLabelVisible: unreadNotificationCount > 0,
+            backgroundColor: AppColors.primary,
+            textColor: Colors.white,
+            child: const Icon(Icons.notifications_none),
+          ),
         ),
         InkWell(
-          onTap: onIconTap,
+          onTap: onProfileTap,
           customBorder: const CircleBorder(),
           child: const CircleAvatar(
             backgroundColor: AppColors.surfaceLight,
@@ -395,7 +395,7 @@ class _SearchField extends StatelessWidget {
         hintText: 'ค้นหาบริการ...',
         prefixIcon: const Icon(Icons.search),
         filled: true,
-        fillColor: AppColors.surfaceLight,
+        fillColor: Colors.grey.shade100,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide.none,
@@ -572,13 +572,17 @@ class _QuickActionsRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: _quickActions
-          .map(
-            (action) =>
-                _QuickActionCard(action: action, onTap: () => onTap(action)),
-          )
-          .toList(),
+      children: [
+        for (var i = 0; i < _quickActions.length; i++) ...[
+          if (i > 0) const SizedBox(width: 12),
+          Expanded(
+            child: _QuickActionCard(
+              action: _quickActions[i],
+              onTap: () => onTap(_quickActions[i]),
+            ),
+          ),
+        ],
+      ],
     );
   }
 }
@@ -591,25 +595,34 @@ class _QuickActionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(16),
-      child: SizedBox(
-        width: 76,
-        child: Column(
-          children: [
-            CircleAvatar(
-              radius: 28,
-              backgroundColor: AppColors.surfaceLight,
-              child: Icon(action.icon, color: AppColors.primary),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              action.label,
-              textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 12),
-            ),
-          ],
+    return Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(20),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(20),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: AppColors.primary),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(action.icon, color: AppColors.primary, size: 26),
+              const SizedBox(height: 6),
+              Text(
+                action.label,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: AppColors.primary,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 12,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

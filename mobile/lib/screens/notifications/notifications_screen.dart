@@ -135,28 +135,19 @@ class NotificationsScreenState extends State<NotificationsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return SafeArea(
-      child: Padding(
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('แจ้งเตือน'),
+        actions: [
+          TextButton(
+            onPressed: _markAllRead,
+            child: const Text('อ่านทั้งหมด'),
+          ),
+        ],
+      ),
+      body: Padding(
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text(
-                  'แจ้งเตือน',
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
-                ),
-                TextButton(
-                  onPressed: _markAllRead,
-                  child: const Text('อ่านทั้งหมด'),
-                ),
-              ],
-            ),
-            Expanded(child: _buildBody()),
-          ],
-        ),
+        child: _buildBody(),
       ),
     );
   }

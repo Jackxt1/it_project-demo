@@ -7,6 +7,11 @@ import '../../models/booking_draft.dart';
 import '../../models/install_area.dart';
 import '../../models/product.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/bounce_on_change.dart';
+import '../../widgets/booking_summary_card.dart';
+import '../../widgets/bouncy_button.dart';
+import '../../widgets/fade_slide_in.dart';
+import '../../widgets/section_number_title.dart';
 
 enum _BookingMode { film, wash, repair }
 
@@ -265,11 +270,10 @@ class _Step2ProductState extends State<Step2Product> {
       runSpacing: 8,
       children: installAreaOptions.map((opt) {
         final selected = widget.draft.installArea == opt.value;
-        return ChoiceChip(
-          label: Text(opt.label),
+        return _PillChip(
+          label: opt.label,
           selected: selected,
-          selectedColor: AppColors.surfaceLight,
-          onSelected: (_) => _selectArea(opt.value),
+          onTap: () => _selectArea(opt.value),
         );
       }).toList(),
     );
@@ -306,11 +310,10 @@ class _Step2ProductState extends State<Step2Product> {
       runSpacing: 8,
       children: brands.map((brand) {
         final selected = _selectedBrand == brand;
-        return ChoiceChip(
-          label: Text(brand),
+        return _PillChip(
+          label: brand,
           selected: selected,
-          selectedColor: AppColors.surfaceLight,
-          onSelected: (_) => _selectBrand(brand),
+          onTap: () => _selectBrand(brand),
         );
       }).toList(),
     );
@@ -334,12 +337,17 @@ class _Step2ProductState extends State<Step2Product> {
     }
     return Column(
       children: products
+          .asMap()
+          .entries
           .map(
-            (p) => _ProductCard(
-              product: p,
-              selected: widget.draft.product?.id == p.id,
-              showSpecs: showSpecs,
-              onTap: () => _selectProduct(p),
+            (entry) => FadeSlideIn(
+              index: entry.key,
+              child: _ProductCard(
+                product: entry.value,
+                selected: widget.draft.product?.id == entry.value.id,
+                showSpecs: showSpecs,
+                onTap: () => _selectProduct(entry.value),
+              ),
             ),
           )
           .toList(),
@@ -428,10 +436,54 @@ class _Step2ProductState extends State<Step2Product> {
       top: false,
       child: Padding(
         padding: const EdgeInsets.all(16),
-        child: FilledButton(
-          style: FilledButton.styleFrom(backgroundColor: AppColors.primary),
-          onPressed: _canProceed ? _confirm : null,
-          child: const Text('ไปยังหน้านัดเวลา'),
+        child: BouncyButton(
+          child: FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: AppColors.primary),
+            onPressed: _canProceed ? _confirm : null,
+            child: const Text('ไปยังหน้านัดเวลา'),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Rounded outline chip — white bg/red border/red text when unselected,
+/// solid red fill/white text when selected. Same visual language as step
+/// 3's time-slot chips.
+class _PillChip extends StatelessWidget {
+  const _PillChip({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(20),
+      child: BounceOnChange(
+        trigger: selected,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          decoration: BoxDecoration(
+            color: selected ? AppColors.primaryDark : Colors.white,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: AppColors.primary),
+          ),
+          child: Text(
+            label,
+            style: TextStyle(
+              color: selected ? Colors.white : AppColors.primary,
+              fontWeight: FontWeight.w600,
+              fontSize: 13,
+            ),
+          ),
         ),
       ),
     );
@@ -443,10 +495,7 @@ class _SectionTitle extends StatelessWidget {
   final String text;
 
   @override
-  Widget build(BuildContext context) => Text(
-    text,
-    style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
-  );
+  Widget build(BuildContext context) => SectionNumberTitle(text);
 }
 
 class _VehicleSummaryCard extends StatelessWidget {
@@ -463,32 +512,11 @@ class _VehicleSummaryCard extends StatelessWidget {
         : (vehicle.year != null
               ? '${vehicle.brandModel} ${vehicle.year}'
               : vehicle.brandModel);
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceLight,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        children: [
-          const Icon(Icons.directions_car, color: AppColors.primary),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'รถของคุณ',
-                  style: TextStyle(fontSize: 12, color: Colors.black54),
-                ),
-                Text(title, style: const TextStyle(fontWeight: FontWeight.w700)),
-                if (vehicle != null) Text(vehicle.licensePlate),
-              ],
-            ),
-          ),
-          TextButton(onPressed: onChange, child: const Text('เปลี่ยน')),
-        ],
-      ),
+    return BookingSummaryCard(
+      icon: Icons.directions_car,
+      title: title,
+      subtitle: vehicle?.licensePlate,
+      trailing: TextButton(onPressed: onChange, child: const Text('เปลี่ยน')),
     );
   }
 }
@@ -522,14 +550,17 @@ class _ProductCard extends StatelessWidget {
     }
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
+      elevation: 0,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(16),
         side: BorderSide(
           color: selected ? AppColors.primary : Colors.grey.shade300,
+          width: selected ? 1.2 : 1,
         ),
       ),
       child: ListTile(
         onTap: onTap,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Text(
           product.name,
           style: const TextStyle(fontWeight: FontWeight.w700),
@@ -549,9 +580,12 @@ class _ProductCard extends StatelessWidget {
             ),
           ],
         ),
-        trailing: Icon(
-          selected ? Icons.radio_button_checked : Icons.radio_button_off,
-          color: selected ? AppColors.primary : Colors.grey,
+        trailing: BounceOnChange(
+          trigger: selected,
+          child: Icon(
+            selected ? Icons.radio_button_checked : Icons.radio_button_off,
+            color: selected ? AppColors.primary : Colors.grey,
+          ),
         ),
       ),
     );

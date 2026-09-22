@@ -21,5 +21,8 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon.ico|api|login).*)'],
+  // Also skips public static assets (bg_web.png, logo-mark.png, etc.) — anything
+  // with a file extension — so unauthenticated pages like /login can load them
+  // without the middleware bouncing the asset request itself to /login.
+  matcher: ['/((?!_next/static|_next/image|favicon.ico|api|login|.*\\.\\w+$).*)'],
 };

@@ -12,5 +12,6 @@ import java.math.BigDecimal;
 public class DashboardSummaryResponse {
     private long bookingsToday;
     private long bookingsThisMonth;
+    private BigDecimal revenueToday;
     private BigDecimal revenueThisMonth;
 }

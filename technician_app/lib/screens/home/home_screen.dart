@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../api/auth_service.dart';
@@ -5,6 +7,8 @@ import '../../models/booking.dart';
 import '../../state/technician_queue_controller.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/thai_date.dart';
+import '../../widgets/bounce_on_change.dart';
+import '../../widgets/fade_slide_in.dart';
 import '../../widgets/job_card.dart';
 import '../../widgets/tech_header.dart';
 import '../calendar/calendar_screen.dart';
@@ -24,6 +28,13 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   final _controller = TechnicianQueueController.instance;
+  StreamSubscription<Booking>? _newJobSub;
+
+  /// The id of whatever job the live socket most recently pushed in, so its
+  /// card can pop/glow for a moment — otherwise a new job silently joining
+  /// the list reads as "nothing happened" even though it did.
+  int? _justArrivedId;
+  Timer? _justArrivedTimer;
 
   @override
   void initState() {
@@ -32,11 +43,21 @@ class _HomeScreenState extends State<HomeScreen> {
     if (!_controller.loadedOnce) {
       _controller.refresh();
     }
+    _newJobSub = _controller.onNewJobAssigned.listen((booking) {
+      if (!mounted) return;
+      setState(() => _justArrivedId = booking.id);
+      _justArrivedTimer?.cancel();
+      _justArrivedTimer = Timer(const Duration(seconds: 3), () {
+        if (mounted) setState(() => _justArrivedId = null);
+      });
+    });
   }
 
   @override
   void dispose() {
     _controller.removeListener(_onChange);
+    _newJobSub?.cancel();
+    _justArrivedTimer?.cancel();
     super.dispose();
   }
 
@@ -62,6 +83,7 @@ class _HomeScreenState extends State<HomeScreen> {
         date: thaiFullDate(today),
         brandRow: TechBrandRow(
           technicianName: technicianName,
+          hasUnreadNotifications: _controller.unreadNotifications > 0,
           onCalendarTap: () => Navigator.of(context).push(
             MaterialPageRoute(builder: (_) => const CalendarScreen()),
           ),
@@ -92,10 +114,14 @@ class _HomeScreenState extends State<HomeScreen> {
                       if (todayJobs.isEmpty)
                         const _EmptyToday()
                       else
-                        for (final booking in todayJobs) ...[
-                          JobCard(
-                            booking: booking,
-                            onTap: () => _openDetail(context, booking),
+                        for (final entry in todayJobs.asMap().entries) ...[
+                          FadeSlideIn(
+                            index: entry.key,
+                            child: _HighlightableJobCard(
+                              booking: entry.value,
+                              justArrived: entry.value.id == _justArrivedId,
+                              onTap: () => _openDetail(context, entry.value),
+                            ),
                           ),
                           const SizedBox(height: 12),
                         ],
@@ -130,11 +156,48 @@ class _StatCard extends StatelessWidget {
       ),
       child: Column(
         children: [
-          Text('$value', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: color)),
+          BounceOnChange(
+            trigger: value,
+            child: Text('$value', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: color)),
+          ),
           const SizedBox(height: 3),
           Text(label, style: const TextStyle(fontSize: 11.5, color: AppColors.ink700)),
         ],
       ),
+    );
+  }
+}
+
+/// Wraps [JobCard] with a temporary red glow/border while [justArrived] is
+/// true — the visible cue that a job on screen just came in live, not just
+/// "a card that happens to be there". See [_HomeScreenState._justArrivedId].
+class _HighlightableJobCard extends StatelessWidget {
+  const _HighlightableJobCard({
+    required this.booking,
+    required this.justArrived,
+    required this.onTap,
+  });
+
+  final Booking booking;
+  final bool justArrived;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 400),
+      curve: Curves.easeOut,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: justArrived ? AppColors.primary : Colors.transparent,
+          width: 2,
+        ),
+        boxShadow: justArrived
+            ? [BoxShadow(color: AppColors.primary.withValues(alpha: 0.35), blurRadius: 12, spreadRadius: 1)]
+            : const [],
+      ),
+      child: JobCard(booking: booking, onTap: onTap),
     );
   }
 }

@@ -7,6 +7,10 @@ import '../../api/booking_service.dart';
 import '../../models/booking.dart';
 import '../../models/booking_draft.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/bounce_on_change.dart';
+import '../../widgets/booking_summary_card.dart';
+import '../../widgets/bouncy_button.dart';
+import '../../widgets/section_number_title.dart';
 
 final NumberFormat _priceFormat = NumberFormat('#,###');
 
@@ -146,24 +150,15 @@ class _Step4PaymentState extends State<Step4Payment> {
               children: [
                 _buildSummaryCard(),
                 const SizedBox(height: 20),
-                const Text(
-                  '01 รายการค่าใช้จ่าย',
-                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
-                ),
+                const SectionNumberTitle('01 รายการค่าใช้จ่าย'),
                 const SizedBox(height: 12),
                 _buildCostCard(),
                 const SizedBox(height: 24),
-                const Text(
-                  '02 ช่องทางชำระเงิน',
-                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
-                ),
+                const SectionNumberTitle('02 ช่องทางชำระเงิน'),
                 const SizedBox(height: 12),
                 _buildPaymentChannelCard(),
                 const SizedBox(height: 24),
-                const Text(
-                  '03 เลือกวิธีชำระเงิน',
-                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
-                ),
+                const SectionNumberTitle('03 เลือกวิธีชำระเงิน'),
                 const SizedBox(height: 12),
                 _buildPaymentOptions(),
               ],
@@ -176,26 +171,10 @@ class _Step4PaymentState extends State<Step4Payment> {
   }
 
   Widget _buildSummaryCard() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceLight,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            _selectionSummaryText,
-            style: const TextStyle(fontWeight: FontWeight.w700),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            'วันที่ติดตั้ง: $_installDateText',
-            style: const TextStyle(fontSize: 13, color: Colors.black54),
-          ),
-        ],
-      ),
+    return BookingSummaryCard(
+      icon: Icons.directions_car,
+      title: _selectionSummaryText,
+      subtitle: 'วันที่ติดตั้ง: $_installDateText',
     );
   }
 
@@ -306,19 +285,21 @@ class _Step4PaymentState extends State<Step4Payment> {
       top: false,
       child: Padding(
         padding: const EdgeInsets.all(16),
-        child: FilledButton(
-          style: FilledButton.styleFrom(backgroundColor: AppColors.primary),
-          onPressed: _submitting ? null : _submit,
-          child: _submitting
-              ? const SizedBox(
-                  height: 20,
-                  width: 20,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    color: Colors.white,
-                  ),
-                )
-              : const Text('ยืนยันการชำระเงิน'),
+        child: BouncyButton(
+          child: FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: AppColors.primary),
+            onPressed: _submitting ? null : _submit,
+            child: _submitting
+                ? const SizedBox(
+                    height: 20,
+                    width: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
+                  )
+                : const Text('ยืนยันการชำระเงิน'),
+          ),
         ),
       ),
     );
@@ -355,9 +336,12 @@ class _PaymentOptionCard extends StatelessWidget {
         ),
         child: Row(
           children: [
-            Icon(
-              selected ? Icons.radio_button_checked : Icons.radio_button_off,
-              color: selected ? AppColors.primary : Colors.grey,
+            BounceOnChange(
+              trigger: selected,
+              child: Icon(
+                selected ? Icons.radio_button_checked : Icons.radio_button_off,
+                color: selected ? AppColors.primary : Colors.grey,
+              ),
             ),
             const SizedBox(width: 12),
             Expanded(

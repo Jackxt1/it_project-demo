@@ -106,7 +106,10 @@ class _JobDetailScreenState extends State<JobDetailScreen> {
           : ListView(
               padding: EdgeInsets.zero,
               children: [
-                _CustomerBanner(booking: booking),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                  child: _CustomerInfoCard(booking: booking),
+                ),
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
                   child: Column(
@@ -204,52 +207,88 @@ class _JobDetailScreenState extends State<JobDetailScreen> {
   }
 }
 
-class _CustomerBanner extends StatelessWidget {
-  const _CustomerBanner({required this.booking});
+class _CustomerInfoCard extends StatelessWidget {
+  const _CustomerInfoCard({required this.booking});
   final Booking booking;
 
   @override
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(18, 18, 18, 20),
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [AppColors.primary, AppColors.primaryDark],
-        ),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.primary, width: 1.3),
       ),
-      child: Row(
+      child: Stack(
         children: [
-          Container(
-            width: 48,
-            height: 48,
-            decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.25), shape: BoxShape.circle),
-            child: const Icon(Icons.person, color: Colors.white, size: 24),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  booking.userFullName,
-                  style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w800),
-                  overflow: TextOverflow.ellipsis,
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 52,
+                height: 52,
+                decoration: const BoxDecoration(color: AppColors.primary, shape: BoxShape.circle),
+                child: const Icon(Icons.person, color: Colors.white, size: 26),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.only(right: 64),
+                      child: Text(
+                        booking.userFullName,
+                        style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: AppColors.ink900),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    if (booking.vehicleLicensePlate != null || booking.vehicleBrandModel != null) ...[
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          if (booking.vehicleLicensePlate != null) ...[
+                            const Icon(Icons.vpn_key, size: 14, color: AppColors.primary),
+                            const SizedBox(width: 4),
+                            Text(booking.vehicleLicensePlate!, style: const TextStyle(fontSize: 13, color: AppColors.ink700)),
+                            const SizedBox(width: 12),
+                          ],
+                          if (booking.vehicleBrandModel != null) ...[
+                            const Icon(Icons.directions_car, size: 14, color: AppColors.primary),
+                            const SizedBox(width: 4),
+                            Expanded(
+                              child: Text(
+                                booking.vehicleBrandModel!,
+                                style: const TextStyle(fontSize: 13, color: AppColors.ink700),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ],
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        const Icon(Icons.access_time, size: 14, color: AppColors.primary),
+                        const SizedBox(width: 4),
+                        Expanded(
+                          child: Text(
+                            '${thaiShortDate(booking.bookingDate)}  ·  เวลา ${booking.timeSlot}',
+                            style: const TextStyle(fontSize: 13, color: AppColors.ink700),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 2),
-                Text(
-                  '${thaiShortDate(booking.bookingDate)} · ${booking.timeSlot}'
-                  '${booking.vehicleBrandModel != null ? ' · ${booking.vehicleBrandModel}' : ''}'
-                  '${booking.vehicleLicensePlate != null ? ' (${booking.vehicleLicensePlate})' : ''}',
-                  style: const TextStyle(color: Colors.white70, fontSize: 12.5),
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
-          StatusBadge(status: booking.status, onDark: true),
+          Positioned(top: 0, right: 0, child: StatusBadge(status: booking.status)),
         ],
       ),
     );
