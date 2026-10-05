@@ -17,10 +17,15 @@ class OtpVerifyScreen extends StatefulWidget {
     super.key,
     required this.phone,
     required this.resendAfterSeconds,
+    this.devCode,
   });
 
   final String phone;
   final int resendAfterSeconds;
+
+  /// รหัสจริงที่ backend ส่งกลับมาเมื่อเปิด `app.otp.expose-code`
+  /// null เมื่อปิด (ซึ่งต้องปิดก่อน deploy) แล้วจะไม่มีอะไรโผล่ในหน้าจอเลย
+  final String? devCode;
 
   @override
   State<OtpVerifyScreen> createState() => _OtpVerifyScreenState();
@@ -32,9 +37,16 @@ class _OtpVerifyScreenState extends State<OtpVerifyScreen> {
   late int _secondsLeft;
   Timer? _timer;
 
+  /// รหัสโหมดทดสอบล่าสุด อัปเดตเมื่อกดขอรหัสใหม่
+  String? _devCode;
+
+  /// รหัสที่กดสั่งให้เติมลงช่อง เปลี่ยนค่าเมื่อไหร่ OtpCodeField จะสร้างใหม่
+  String? _prefill;
+
   @override
   void initState() {
     super.initState();
+    _devCode = widget.devCode;
     _startCountdown(widget.resendAfterSeconds);
   }
 
@@ -80,6 +92,10 @@ class _OtpVerifyScreenState extends State<OtpVerifyScreen> {
       final result = await OtpApi.instance.requestCode(widget.phone);
       _startCountdown(result.resendAfterSeconds);
       if (!mounted) return;
+      setState(() {
+        _devCode = result.devCode;
+        _prefill = null;
+      });
       ScaffoldMessenger.of(context)
           .showSnackBar(const SnackBar(content: Text('ส่งรหัสใหม่แล้ว')));
     } on ApiException catch (error) {
@@ -157,9 +173,18 @@ class _OtpVerifyScreenState extends State<OtpVerifyScreen> {
               ),
               const SizedBox(height: 24),
               OtpCodeField(
+                key: ValueKey(_prefill),
+                prefill: _prefill,
                 onChanged: (code) => _code = code,
                 onCompleted: (code) => _code = code,
               ),
+              if (_devCode != null) ...[
+                const SizedBox(height: 14),
+                _DevCodeBanner(
+                  code: _devCode!,
+                  onFill: () => setState(() => _prefill = _devCode),
+                ),
+              ],
               const SizedBox(height: 18),
               Center(
                 child: _secondsLeft > 0
@@ -194,6 +219,56 @@ class _OtpVerifyScreenState extends State<OtpVerifyScreen> {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// แถบแสดงรหัสตอนที่ backend เปิดโหมดทดสอบไว้ มีไว้ให้คนที่หยิบแอปไปลอง
+/// เข้าใช้งานได้เองโดยไม่ต้องเปิด log ของ backend อ่าน
+/// จะหายไปทั้งแถบทันทีที่ตั้ง OTP_EXPOSE_CODE=false
+class _DevCodeBanner extends StatelessWidget {
+  const _DevCodeBanner({required this.code, required this.onFill});
+
+  final String code;
+  final VoidCallback onFill;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(14, 10, 10, 10),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceLight,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.primary.withValues(alpha: 0.25)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.science_outlined, size: 18, color: AppColors.primaryDark),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'โหมดทดสอบ (ยังไม่ส่ง SMS จริง)',
+                  style: TextStyle(fontSize: 11, color: Colors.black54),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'รหัส $code',
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 1.5,
+                    color: AppColors.primaryDark,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          TextButton(onPressed: onFill, child: const Text('ใส่รหัสให้')),
+        ],
       ),
     );
   }

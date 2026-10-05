@@ -11,11 +11,16 @@ class OtpCodeField extends StatefulWidget {
     this.length = 6,
     required this.onCompleted,
     this.onChanged,
+    this.prefill,
   });
 
   final int length;
   final ValueChanged<String> onCompleted;
   final ValueChanged<String>? onChanged;
+
+  /// เติมรหัสให้ตั้งแต่แรก ใช้ตอนโหมดทดสอบที่ backend ส่งรหัสกลับมาด้วย
+  /// เปลี่ยนค่านี้พร้อมเปลี่ยน key เพื่อให้เติมรหัสชุดใหม่
+  final String? prefill;
 
   @override
   State<OtpCodeField> createState() => _OtpCodeFieldState();
@@ -30,6 +35,24 @@ class _OtpCodeFieldState extends State<OtpCodeField> {
     super.initState();
     _controllers = List.generate(widget.length, (_) => TextEditingController());
     _focusNodes = List.generate(widget.length, (_) => FocusNode());
+
+    final prefill = widget.prefill;
+    if (prefill != null) {
+      final digits = prefill.replaceAll(RegExp(r'\D'), '');
+      for (var i = 0; i < widget.length && i < digits.length; i++) {
+        _controllers[i].text = digits[i];
+      }
+      // รอให้ widget สร้างเสร็จก่อนค่อยแจ้งกลับ ไม่งั้น setState ของหน้าแม่
+      // จะถูกเรียกระหว่าง build
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        final code = _code;
+        widget.onChanged?.call(code);
+        if (code.length == widget.length) {
+          widget.onCompleted(code);
+        }
+      });
+    }
   }
 
   @override

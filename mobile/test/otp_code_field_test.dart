@@ -43,4 +43,16 @@ void main() {
 
     expect(completed, '842137');
   });
+
+  testWidgets('prefill เติมรหัสให้ครบทุกช่องและรายงานรหัสออกมาเอง', (tester) async {
+    String? completed;
+    await tester.pumpWidget(_wrap(
+      OtpCodeField(prefill: '551234', onCompleted: (code) => completed = code),
+    ));
+    await tester.pump();
+
+    final fields = tester.widgetList<TextField>(find.byType(TextField)).toList();
+    expect(fields.map((f) => f.controller!.text).join(), '551234');
+    expect(completed, '551234');
+  });
 }

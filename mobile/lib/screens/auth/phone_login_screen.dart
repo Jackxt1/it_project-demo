@@ -51,6 +51,7 @@ class _PhoneLoginScreenState extends State<PhoneLoginScreen> {
         builder: (_) => OtpVerifyScreen(
           phone: result.phone,
           resendAfterSeconds: result.resendAfterSeconds,
+          devCode: result.devCode,
         ),
       ));
     } on ApiException catch (error) {
