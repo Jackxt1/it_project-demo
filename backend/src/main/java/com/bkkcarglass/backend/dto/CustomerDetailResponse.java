@@ -16,5 +16,8 @@ public class CustomerDetailResponse {
     private String email;
     private String phone;
     private LocalDateTime createdAt;
+    /** รถคันล่าสุด ตรงกับที่แสดงในรายการลูกค้า */
+    private String vehicleBrandModel;
+    private String vehicleLicensePlate;
     private List<BookingResponse> bookings;
 }

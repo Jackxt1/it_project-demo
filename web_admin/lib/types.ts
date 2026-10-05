@@ -49,6 +49,8 @@ export interface Customer {
   email: string;
   phone: string | null;
   createdAt: string;
+  vehicleBrandModel: string | null;
+  vehicleLicensePlate: string | null;
 }
 
 export interface CustomerDetail extends Customer {
