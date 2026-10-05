@@ -2,6 +2,13 @@
   "version": "0.0.1",
   "configurations": [
     {
+      "name": "backend",
+      "runtimeExecutable": "mvn",
+      "runtimeArgs": ["spring-boot:run"],
+      "cwd": "backend",
+      "port": 8080
+    },
+    {
       "name": "web_admin",
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "dev", "--prefix", "web_admin"],
