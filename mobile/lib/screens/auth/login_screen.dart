@@ -4,6 +4,7 @@ import '../../api/api_client.dart';
 import '../../api/auth_service.dart';
 import '../../theme/app_theme.dart';
 import '../main_shell.dart';
+import 'phone_login_screen.dart';
 
 final RegExp _emailPattern = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
 const String _comingSoonMessage = 'ฟีเจอร์นี้จะเปิดใช้เร็วๆ นี้';
@@ -91,6 +92,19 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
+  /// กลับไปหน้าเข้าสู่ระบบด้วยเบอร์โทร ปกติหน้านี้ถูก push มาจากหน้านั้น
+  /// จึง pop กลับได้เลย ส่วน pushReplacement เผื่อกรณีที่หน้านี้เป็นหน้าแรก
+  void _useOtpLogin() {
+    final navigator = Navigator.of(context);
+    if (navigator.canPop()) {
+      navigator.pop();
+      return;
+    }
+    navigator.pushReplacement(
+      MaterialPageRoute(builder: (_) => const PhoneLoginScreen()),
+    );
+  }
+
   void _openRegister() {
     Navigator.of(context).push(
       MaterialPageRoute(
@@ -140,6 +154,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       child: _LoginForm(
                         onSuccess: _goToMainShell,
                         onComingSoon: _showComingSoon,
+                        onUseOtpLogin: _useOtpLogin,
                       ),
                     ),
                   ),
@@ -218,10 +233,15 @@ class _LoginRegisterTabs extends StatelessWidget {
 }
 
 class _LoginForm extends StatefulWidget {
-  const _LoginForm({required this.onSuccess, required this.onComingSoon});
+  const _LoginForm({
+    required this.onSuccess,
+    required this.onComingSoon,
+    required this.onUseOtpLogin,
+  });
 
   final VoidCallback onSuccess;
   final VoidCallback onComingSoon;
+  final VoidCallback onUseOtpLogin;
 
   @override
   State<_LoginForm> createState() => _LoginFormState();
@@ -372,6 +392,18 @@ class _LoginFormState extends State<_LoginForm> {
                     style: TextStyle(color: Colors.black87, fontWeight: FontWeight.bold, fontSize: 14),
                   ),
                 ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          // ทางกลับไปหน้าแรกของการเข้าสู่ระบบ ซึ่งคือการใช้เบอร์โทร + OTP
+          Center(
+            child: TextButton.icon(
+              onPressed: widget.onUseOtpLogin,
+              icon: const Icon(Icons.arrow_back, size: 16),
+              label: const Text(
+                'เข้าสู่ระบบด้วยเบอร์โทร (OTP)',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
               ),
             ),
           ),

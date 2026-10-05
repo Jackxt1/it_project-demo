@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:bkk_customer/api/api_client.dart';
+import 'package:bkk_customer/screens/auth/login_screen.dart';
 import 'package:bkk_customer/screens/auth/phone_login_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -58,5 +59,22 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(requestedPath, '/api/auth/otp/request');
+  });
+
+  testWidgets('ไปหน้ารหัสผ่านแล้วมีปุ่มกลับมาหน้า OTP ได้', (tester) async {
+    await tester.pumpWidget(const MaterialApp(home: PhoneLoginScreen()));
+
+    await tester.ensureVisible(find.text('เข้าสู่ระบบด้วยรหัสผ่าน'));
+    await tester.tap(find.text('เข้าสู่ระบบด้วยรหัสผ่าน'));
+    await tester.pumpAndSettle();
+    expect(find.byType(LoginScreen), findsOneWidget);
+    expect(find.byType(PhoneLoginScreen), findsNothing);
+
+    await tester.ensureVisible(find.text('เข้าสู่ระบบด้วยเบอร์โทร (OTP)'));
+    await tester.tap(find.text('เข้าสู่ระบบด้วยเบอร์โทร (OTP)'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(PhoneLoginScreen), findsOneWidget);
+    expect(find.byType(LoginScreen), findsNothing);
   });
 }
