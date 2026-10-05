@@ -67,6 +67,15 @@ read/read-all), โปรไฟล์+รถของฉัน (CRUD, ฟอร�
 - เทส: widget/unit 33 ตัว (รันด้วย `flutter test --concurrency=1` — bare `flutter test` flaky บนเครื่องนี้)
 - ตรวจ integration กับ backend จริงแล้ว 24/24 (จองล้าง+มัดจำ, quote flow ครบวงจร, แชท, chatbot fallback)
 - API base URL ตั้งผ่าน `--dart-define=API_BASE_URL` (default http://localhost:8080) (Android emulator ใช้ http://10.0.2.2:8080)
+- เข้าสู่ระบบด้วยเบอร์โทร + OTP (หน้าแรกหลัง onboarding): กรอกเบอร์ → รหัส 6 หลัก → ถ้าเป็นผู้ใช้ใหม่
+  กรอกชื่อ-นามสกุลแล้วเข้าใช้งาน **เบอร์โทรเป็น identity หลักของบัญชีลูกค้า** (`users.phone` unique,
+  เก็บเป็น E.164 เสมอ) ทางเข้าเดิมด้วยอีเมล+รหัสผ่านยังอยู่ครบ เข้าได้จากปุ่ม "เข้าสู่ระบบด้วยรหัสผ่าน"
+  — รหัสเก็บแบบ hash ในตาราง `otp_requests` หมดอายุ 5 นาที กรอกผิดได้ 5 ครั้ง ขอใหม่ได้ทุก 60 วิ
+  ไม่เกิน 5 ครั้ง/ชม. **ยังไม่ส่ง SMS จริง** — `OtpSender` มี implementation เดียวคือเขียนรหัสลง log
+  (ไม่มี SMS gateway เจ้าไหนที่ฟรีโดยไม่ผูกบัตร) ต่อของจริงทีหลัง = เพิ่มคลาสเดียว ไม่แตะ flow
+- ผลพลอยได้จากข้อบน: **JWT `sub` เปลี่ยนจากอีเมลเป็น user id** และเพิ่ม claim `email`/`phone`
+  (`users.email` กับ `password_hash` ยอมให้ว่างได้แล้ว) ตัว resolver ทั้งสองฝั่งยังรับอีเมลอยู่ เพื่อให้
+  token เก่าใช้ได้จนหมดอายุ — `web_admin/lib/session.ts` อ่าน claim `email` แทน `sub` แล้ว
 - ยังไม่ทำ: Google Sign-In, ลืมรหัสผ่าน, ชำระเงินจริง (เฟส 4)
 
 ## Technician App Status (technician_app/)
@@ -135,5 +144,8 @@ and TECHNICIAN users, built entirely against the Phase 3 backend (`main`, commit
 - `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET` — จาก Cloudinary dashboard
 - `GEMINI_API_KEY`, `GEMINI_MODEL` — จาก Google AI Studio (ไม่ใส่ = fallback เป็น price-proximity)
 - `FIREBASE_SERVICE_ACCOUNT_PATH` — path ไฟล์ service account JSON (ไม่ใส่ = push notification ปิดเงียบๆ)
+- `OTP_SENDER` — ช่องทางส่ง OTP (default `log` = เขียนรหัสลง log ไม่ส่ง SMS จริง) ถ้าตั้งค่าที่ยังไม่มีคลาสรองรับ แอปจะบูตไม่ขึ้น ซึ่งตั้งใจให้เป็นแบบนั้น
+- `OTP_EXPOSE_CODE` — **ต้องตั้งเป็น `false` ก่อน deploy** ถ้าเปิดไว้ response ของ `/api/auth/otp/request` จะมีรหัสติดมาด้วย ใครรู้เบอร์ก็ล็อกอินเป็นคนนั้นได้
+- `OTP_TTL_SECONDS`, `OTP_RESEND_COOLDOWN_SECONDS`, `OTP_MAX_PER_HOUR`, `OTP_MAX_ATTEMPTS` — ปรับ rate limit ของ OTP (default 300 วิ / 60 วิ / 5 ครั้งต่อชม. / 5 ครั้งต่อรหัส)
 - `CORS_ALLOWED_ORIGINS` — โดเมนจริงของ web admin ตอน deploy (comma-separated)
 - `SERVER_PORT` — ปรับได้ตาม hosting (default 8080)
