@@ -71,7 +71,7 @@ req  { "phone": "0968563615" }
 200  { "phone": "+66968563615", "expiresInSeconds": 300,
        "resendAfterSeconds": 60, "devCode": "842137" }
 400  เบอร์ผิดรูปแบบ
-429  { "message": "...", "resendAfterSeconds": 42 }   ยังไม่พ้น cooldown หรือเกินโควต้า/ชม.
+429  ยังไม่พ้น cooldown หรือเกินโควต้าต่อชั่วโมง
 ```
 
 `devCode` ใส่มาเฉพาะตอน `app.otp.expose-code=true` (ค่า default ของ dev) เท่านั้น
@@ -81,10 +81,15 @@ req  { "phone": "0968563615" }
 ```
 req  { "phone": "0968563615", "code": "842137" }
 200  AuthResponse + profileComplete
-400  { "message": "รหัสไม่ถูกต้อง", "attemptsLeft": 3 }
+400  รหัสไม่ถูกต้อง
 410  รหัสหมดอายุ หรือถูกใช้ไปแล้ว
 429  กรอกผิดเกินกำหนด ต้องขอรหัสใหม่
 ```
+
+**รูปแบบ error ทุกตัวใช้ของเดิมทั้งหมด** — `GlobalExceptionHandler` ตอบ
+`{timestamp, status, error, message}` เสมอ และ `ApiException` ฝั่ง Flutter อ่านเฉพาะ `message`
+ไปแสดงตรงๆ ดังนั้นตัวเลขที่ต้องบอกผู้ใช้ (เหลือกรอกได้กี่ครั้ง / ขอใหม่ได้ในกี่วินาที) **ฝังอยู่ใน
+ข้อความภาษาไทยเลย** ไม่เพิ่ม field ใหม่ในก้อน error ให้ผิดแบบจากที่เหลือทั้งระบบ
 
 ขั้นตอนฝั่ง verify เมื่อรหัสถูกต้อง:
 
