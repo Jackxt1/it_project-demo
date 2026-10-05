@@ -14,6 +14,8 @@ public interface UserRepository extends JpaRepository<User, Long> {
     Optional<User> findByEmail(String email);
     boolean existsByEmail(String email);
 
+    Optional<User> findByPhone(String phone);
+
     Page<User> findByRole(Role role, Pageable pageable);
 
     @Query("SELECT u FROM User u WHERE u.role = 'CUSTOMER' AND (" +
