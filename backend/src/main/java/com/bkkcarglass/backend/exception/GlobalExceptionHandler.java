@@ -105,6 +105,31 @@ public class GlobalExceptionHandler {
         return buildResponse(HttpStatus.BAD_REQUEST, ex.getMessage());
     }
 
+    @ExceptionHandler(OtpCooldownException.class)
+    public ResponseEntity<Map<String, Object>> handleOtpCooldown(OtpCooldownException ex) {
+        return buildResponse(HttpStatus.TOO_MANY_REQUESTS, ex.getMessage());
+    }
+
+    @ExceptionHandler(OtpQuotaExceededException.class)
+    public ResponseEntity<Map<String, Object>> handleOtpQuota(OtpQuotaExceededException ex) {
+        return buildResponse(HttpStatus.TOO_MANY_REQUESTS, ex.getMessage());
+    }
+
+    @ExceptionHandler(OtpTooManyAttemptsException.class)
+    public ResponseEntity<Map<String, Object>> handleOtpTooManyAttempts(OtpTooManyAttemptsException ex) {
+        return buildResponse(HttpStatus.TOO_MANY_REQUESTS, ex.getMessage());
+    }
+
+    @ExceptionHandler(OtpInvalidCodeException.class)
+    public ResponseEntity<Map<String, Object>> handleOtpInvalidCode(OtpInvalidCodeException ex) {
+        return buildResponse(HttpStatus.BAD_REQUEST, ex.getMessage());
+    }
+
+    @ExceptionHandler(OtpExpiredException.class)
+    public ResponseEntity<Map<String, Object>> handleOtpExpired(OtpExpiredException ex) {
+        return buildResponse(HttpStatus.GONE, ex.getMessage());
+    }
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<Map<String, Object>> handleValidation(MethodArgumentNotValidException ex) {
         String message = ex.getBindingResult().getFieldErrors().stream()
