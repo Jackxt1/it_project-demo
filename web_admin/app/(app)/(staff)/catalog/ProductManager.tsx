@@ -1,34 +1,31 @@
 'use client';
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { apiGet, apiPost, apiPut, apiDelete, ApiError } from '@/lib/api';
 import { PencilIcon, TrashIcon } from '@/components/ActionIcons';
+import { formatBaht } from '@/lib/format';
 import type { Product, Service } from '@/lib/types';
-
-const EMPTY_FORM = {
-  serviceId: '',
-  name: '',
-  brand: '',
-  grade: '',
-  heatRejectionPct: '',
-  uvRejectionPct: '',
-  vltPct: '',
-  price: '',
-  description: '',
-  imageUrl: '',
-  active: true,
-};
+import ProductFormModal, {
+  EMPTY_PRODUCT_FORM,
+  toFormValues,
+  type ProductFormValues,
+} from './ProductFormModal';
 
 function numOrNull(value: string): number | null {
-  return value === '' ? null : Number(value);
+  return value.trim() === '' ? null : Number(value);
 }
 
 export default function ProductManager() {
   const [products, setProducts] = useState<Product[]>([]);
   const [services, setServices] = useState<Service[]>([]);
-  const [form, setForm] = useState(EMPTY_FORM);
-  const [editingId, setEditingId] = useState<number | null>(null);
-  const [stockDrafts, setStockDrafts] = useState<Record<number, string>>({});
+  const [activeServiceId, setActiveServiceId] = useState<number | null>(null);
+  const [search, setSearch] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  const [editing, setEditing] = useState<Product | null>(null);
+  const [creating, setCreating] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
 
   async function load() {
     const [productList, serviceList] = await Promise.all([
@@ -37,245 +34,246 @@ export default function ProductManager() {
     ]);
     setProducts(productList);
     setServices(serviceList);
+    setActiveServiceId((current) => current ?? serviceList[0]?.id ?? null);
   }
 
   useEffect(() => {
-    load().catch((err) => setError(err instanceof ApiError ? err.message : 'โหลดข้อมูลไม่สำเร็จ'));
+    load()
+      .catch((err) => setError(err instanceof ApiError ? err.message : 'โหลดข้อมูลไม่สำเร็จ'))
+      .finally(() => setLoading(false));
   }, []);
 
-  function startEdit(product: Product) {
-    setEditingId(product.id);
-    setForm({
-      serviceId: String(product.serviceId),
-      name: product.name,
-      brand: product.brand ?? '',
-      grade: product.grade ?? '',
-      heatRejectionPct: product.heatRejectionPct === null ? '' : String(product.heatRejectionPct),
-      uvRejectionPct: product.uvRejectionPct === null ? '' : String(product.uvRejectionPct),
-      vltPct: product.vltPct === null ? '' : String(product.vltPct),
-      price: String(product.price),
-      description: product.description ?? '',
-      imageUrl: product.imageUrl ?? '',
-      active: product.active,
-    });
-  }
+  const countByService = useMemo(() => {
+    const counts = new Map<number, number>();
+    for (const product of products) {
+      counts.set(product.serviceId, (counts.get(product.serviceId) ?? 0) + 1);
+    }
+    return counts;
+  }, [products]);
 
-  function resetForm() {
-    setEditingId(null);
-    setForm(EMPTY_FORM);
-  }
+  const visible = useMemo(() => {
+    const term = search.trim().toLowerCase();
+    return products
+      .filter((p) => p.serviceId === activeServiceId)
+      .filter((p) =>
+        term === ''
+          ? true
+          : [p.name, p.brand, p.grade].filter(Boolean).some((v) => v!.toLowerCase().includes(term)),
+      );
+  }, [products, activeServiceId, search]);
 
-  async function handleSubmit(e: FormEvent) {
-    e.preventDefault();
-    setError(null);
+  const activeService = services.find((s) => s.id === activeServiceId) ?? null;
+
+  async function handleSubmit(values: ProductFormValues) {
+    if (activeServiceId == null) return;
+    setSaving(true);
+    setFormError(null);
     const payload = {
-      serviceId: Number(form.serviceId),
-      name: form.name,
-      brand: form.brand || null,
-      grade: form.grade || null,
-      heatRejectionPct: numOrNull(form.heatRejectionPct),
-      uvRejectionPct: numOrNull(form.uvRejectionPct),
-      vltPct: numOrNull(form.vltPct),
-      price: Number(form.price),
-      description: form.description || null,
-      imageUrl: form.imageUrl || null,
-      active: form.active,
+      serviceId: editing ? editing.serviceId : activeServiceId,
+      name: values.name,
+      brand: values.brand || null,
+      grade: values.grade || null,
+      heatRejectionPct: numOrNull(values.heatRejectionPct),
+      uvRejectionPct: numOrNull(values.uvRejectionPct),
+      vltPct: numOrNull(values.vltPct),
+      price: Number(values.price),
+      description: values.description || null,
+      imageUrl: values.imageUrl || null,
+      active: values.active,
     };
     try {
-      if (editingId) {
-        await apiPut(`/products/${editingId}`, payload);
+      if (editing) {
+        await apiPut(`/products/${editing.id}`, payload);
       } else {
         await apiPost('/products', payload);
       }
-      resetForm();
+      setEditing(null);
+      setCreating(false);
       await load();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'บันทึกไม่สำเร็จ');
+      setFormError(err instanceof ApiError ? err.message : 'บันทึกไม่สำเร็จ');
+    } finally {
+      setSaving(false);
     }
   }
 
-  async function handleDelete(id: number) {
-    if (!confirm('ลบสินค้านี้?')) return;
+  async function handleDelete(product: Product) {
+    if (!confirm(`ลบ "${product.name}" ออกจากรายการสินค้า?`)) return;
     try {
-      await apiDelete(`/products/${id}`);
+      await apiDelete(`/products/${product.id}`);
       await load();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'ลบไม่สำเร็จ');
     }
   }
 
-  async function handleStockSave(id: number) {
-    const raw = stockDrafts[id];
-    if (raw === undefined) return;
-    try {
-      await apiPut(`/products/${id}/stock`, { stockQuantity: Number(raw) });
-      await load();
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'อัปเดตสต็อกไม่สำเร็จ');
-    }
-  }
+  if (loading) return <p className="text-sm text-gray-500">กำลังโหลด...</p>;
 
   return (
-    <div className="grid gap-4 md:grid-cols-[2fr_1fr]">
-      <table className="w-full rounded-lg bg-white shadow-sm">
-        <thead>
-          <tr className="border-b text-left text-sm text-gray-500">
-            <th className="p-3">สินค้า</th>
-            <th className="p-3">ราคา</th>
-            <th className="p-3">สถานะ</th>
-            <th className="p-3">สต็อก</th>
-            <th className="p-3"></th>
-          </tr>
-        </thead>
-        <tbody>
-          {products.map((product) => (
-            <tr key={product.id} className="border-b text-sm last:border-0">
-              <td className="p-3">
-                {product.name}
-                <div className="text-xs text-gray-400">{product.serviceName}</div>
-              </td>
-              <td className="p-3">{product.price.toLocaleString()} บาท</td>
-              <td className="p-3">{product.active ? 'เปิดขาย' : 'ปิดขาย'}</td>
-              <td className="p-3">
-                <div className="flex items-center gap-1">
-                  <input
-                    type="number"
-                    min="0"
-                    placeholder={product.stockQuantity === null ? 'ไม่จำกัด' : String(product.stockQuantity)}
-                    value={stockDrafts[product.id] ?? ''}
-                    onChange={(e) => setStockDrafts({ ...stockDrafts, [product.id]: e.target.value })}
-                    className="w-20 rounded border border-gray-300 px-2 py-1"
-                  />
-                  <button onClick={() => handleStockSave(product.id)} className="text-brand hover:underline">
-                    บันทึก
-                  </button>
-                </div>
-              </td>
-              <td className="space-x-2 p-3">
-                <button
-                  onClick={() => startEdit(product)}
-                  className="inline-flex items-center gap-1 rounded-md bg-yellow-500 px-3 py-1.5 text-sm text-white hover:bg-yellow-600"
-                >
-                  <PencilIcon />
-                  แก้ไข
-                </button>
-                <button
-                  onClick={() => handleDelete(product.id)}
-                  aria-label="ลบ"
-                  className="inline-flex items-center justify-center rounded-md bg-brand p-1.5 text-white hover:bg-brand-dark"
-                >
-                  <TrashIcon />
-                </button>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-
-      <form onSubmit={handleSubmit} className="space-y-3 rounded-lg bg-white p-4 shadow-sm">
-        <h3 className="font-semibold">{editingId ? 'แก้ไขสินค้า' : 'เพิ่มสินค้าใหม่'}</h3>
-        {error && <p className="rounded bg-red-50 p-2 text-sm text-brand">{error}</p>}
-        <select
-          required
-          value={form.serviceId}
-          onChange={(e) => setForm({ ...form, serviceId: e.target.value })}
-          className="w-full rounded border border-gray-300 px-3 py-2"
+    <div>
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <h1 className="text-2xl font-bold text-brand-deep">สินค้าและราคา</h1>
+        <button
+          type="button"
+          onClick={() => {
+            setCreating(true);
+            setFormError(null);
+          }}
+          disabled={activeServiceId == null}
+          className="flex items-center gap-2 rounded-xl bg-brand-dark px-4 py-2 text-sm font-bold text-white hover:bg-brand disabled:opacity-50"
         >
-          <option value="">เลือกบริการ</option>
-          {services.map((service) => (
-            <option key={service.id} value={service.id}>
-              {service.name}
-            </option>
-          ))}
-        </select>
-        <input
-          required
-          placeholder="ชื่อสินค้า"
-          value={form.name}
-          onChange={(e) => setForm({ ...form, name: e.target.value })}
-          className="w-full rounded border border-gray-300 px-3 py-2"
-        />
-        <input
-          placeholder="แบรนด์"
-          value={form.brand}
-          onChange={(e) => setForm({ ...form, brand: e.target.value })}
-          className="w-full rounded border border-gray-300 px-3 py-2"
-        />
-        <input
-          placeholder="เกรด"
-          value={form.grade}
-          onChange={(e) => setForm({ ...form, grade: e.target.value })}
-          className="w-full rounded border border-gray-300 px-3 py-2"
-        />
-        <input
-          placeholder="URL รูปภาพ"
-          value={form.imageUrl}
-          onChange={(e) => setForm({ ...form, imageUrl: e.target.value })}
-          className="w-full rounded border border-gray-300 px-3 py-2"
-        />
-        <div className="grid grid-cols-3 gap-2">
-          <input
-            type="number"
-            min="0"
-            max="100"
-            placeholder="% กันร้อน"
-            value={form.heatRejectionPct}
-            onChange={(e) => setForm({ ...form, heatRejectionPct: e.target.value })}
-            className="w-full rounded border border-gray-300 px-2 py-2 text-sm"
-          />
-          <input
-            type="number"
-            min="0"
-            max="100"
-            placeholder="% กันยูวี"
-            value={form.uvRejectionPct}
-            onChange={(e) => setForm({ ...form, uvRejectionPct: e.target.value })}
-            className="w-full rounded border border-gray-300 px-2 py-2 text-sm"
-          />
-          <input
-            type="number"
-            min="0"
-            max="100"
-            placeholder="% ความเข้ม (VLT)"
-            value={form.vltPct}
-            onChange={(e) => setForm({ ...form, vltPct: e.target.value })}
-            className="w-full rounded border border-gray-300 px-2 py-2 text-sm"
-          />
-        </div>
-        <input
-          required
-          type="number"
-          min="0"
-          placeholder="ราคา"
-          value={form.price}
-          onChange={(e) => setForm({ ...form, price: e.target.value })}
-          className="w-full rounded border border-gray-300 px-3 py-2"
-        />
-        <textarea
-          placeholder="รายละเอียด"
-          value={form.description}
-          onChange={(e) => setForm({ ...form, description: e.target.value })}
-          className="w-full rounded border border-gray-300 px-3 py-2"
-        />
-        <label className="flex items-center gap-2 text-sm">
-          <input
-            type="checkbox"
-            checked={form.active}
-            onChange={(e) => setForm({ ...form, active: e.target.checked })}
-          />
-          เปิดขาย
-        </label>
-        <div className="flex gap-2">
-          <button type="submit" className="rounded bg-brand px-4 py-2 text-sm text-white hover:bg-brand-dark">
-            {editingId ? 'บันทึก' : 'เพิ่ม'}
+          <span className="text-lg leading-none">+</span>
+          เพิ่มสินค้า
+        </button>
+      </div>
+
+      {error && <p className="mb-3 rounded-lg bg-red-50 p-3 text-sm text-brand">{error}</p>}
+
+      <div className="mb-3 flex flex-wrap gap-2">
+        {services.map((service) => (
+          <button
+            key={service.id}
+            type="button"
+            onClick={() => setActiveServiceId(service.id)}
+            className={`flex items-center gap-2 rounded-full px-4 py-1.5 text-sm font-semibold transition ${
+              activeServiceId === service.id
+                ? 'bg-gradient-to-r from-[#be1a1a] to-[#580c0c] text-white shadow-sm'
+                : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+            }`}
+          >
+            {service.name}
+            <span
+              className={`rounded-full px-1.5 text-xs ${
+                activeServiceId === service.id ? 'bg-white/20' : 'bg-white text-gray-500'
+              }`}
+            >
+              {countByService.get(service.id) ?? 0}
+            </span>
           </button>
-          {editingId && (
-            <button type="button" onClick={resetForm} className="rounded border border-gray-300 px-4 py-2 text-sm">
-              ยกเลิก
-            </button>
-          )}
-        </div>
-      </form>
+        ))}
+      </div>
+
+      <div className="relative mb-3 max-w-xs">
+        <svg
+          viewBox="0 0 20 20"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth={1.8}
+          className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-brand"
+        >
+          <circle cx="9" cy="9" r="6" />
+          <path d="m14 14 3 3" strokeLinecap="round" />
+        </svg>
+        <input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="ค้นหายี่ห้อหรือรุ่น"
+          className="w-full rounded-full border border-gray-200 bg-white py-2 pl-9 pr-4 text-sm outline-none focus:border-brand"
+        />
+      </div>
+
+      <div className="overflow-x-auto rounded-2xl border border-gray-200 bg-white shadow-sm">
+        <table className="w-full min-w-[560px]">
+          <thead>
+            <tr className="border-b border-gray-100 text-left text-xs text-gray-400">
+              <th className="p-3 font-medium">ยี่ห้อ/รุ่น</th>
+              <th className="p-3 font-medium">ราคามาตรฐาน</th>
+              <th className="p-3 font-medium">สถานะ</th>
+              <th className="p-3 font-medium">จัดการ</th>
+            </tr>
+          </thead>
+          <tbody>
+            {visible.length === 0 && (
+              <tr>
+                <td colSpan={4} className="p-6 text-center text-sm text-gray-400">
+                  ยังไม่มีสินค้าในบริการนี้
+                </td>
+              </tr>
+            )}
+            {visible.map((product) => (
+              <tr key={product.id} className="border-b border-gray-100 last:border-0">
+                <td className="p-3">
+                  <div className="flex items-center gap-3">
+                    {product.imageUrl ? (
+                      /* eslint-disable-next-line @next/next/no-img-element */
+                      <img
+                        src={product.imageUrl}
+                        alt=""
+                        className="h-10 w-10 shrink-0 rounded-lg object-cover"
+                      />
+                    ) : (
+                      <span className="h-10 w-10 shrink-0 rounded-lg bg-gray-200" />
+                    )}
+                    <span className="min-w-0">
+                      <span className="block truncate text-sm font-bold text-gray-800">
+                        {product.name}
+                      </span>
+                      <span className="block truncate text-xs text-gray-400">
+                        {product.description ?? product.grade ?? product.brand ?? product.serviceName}
+                      </span>
+                    </span>
+                  </div>
+                </td>
+                <td className="whitespace-nowrap p-3 text-sm text-gray-700">
+                  {formatBaht(product.price)}
+                </td>
+                <td className="p-3">
+                  <span
+                    className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-medium ${
+                      product.active ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-brand'
+                    }`}
+                  >
+                    <span
+                      className={`h-1.5 w-1.5 rounded-full ${
+                        product.active ? 'bg-emerald-500' : 'bg-brand'
+                      }`}
+                    />
+                    {product.active ? 'พร้อมจำหน่าย' : 'ไม่พร้อมจำหน่าย'}
+                  </span>
+                </td>
+                <td className="p-3">
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      aria-label={`แก้ไข ${product.name}`}
+                      onClick={() => {
+                        setEditing(product);
+                        setFormError(null);
+                      }}
+                      className="rounded-lg bg-amber-100 p-2 text-amber-700 hover:bg-amber-200"
+                    >
+                      <PencilIcon />
+                    </button>
+                    <button
+                      type="button"
+                      aria-label={`ลบ ${product.name}`}
+                      onClick={() => handleDelete(product)}
+                      className="rounded-lg bg-red-100 p-2 text-brand hover:bg-red-200"
+                    >
+                      <TrashIcon />
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {(creating || editing) && (
+        <ProductFormModal
+          mode={editing ? 'edit' : 'create'}
+          serviceName={editing ? editing.serviceName : (activeService?.name ?? '')}
+          initial={editing ? toFormValues(editing) : EMPTY_PRODUCT_FORM}
+          saving={saving}
+          error={formError}
+          onClose={() => {
+            setCreating(false);
+            setEditing(null);
+          }}
+          onSubmit={handleSubmit}
+        />
+      )}
     </div>
   );
 }
