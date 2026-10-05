@@ -369,6 +369,37 @@ class _LoginFormState extends State<_LoginForm> {
             ],
           ),
           const SizedBox(height: 24),
+          // ทางเข้าด้วยเบอร์โทร + OTP ซึ่งเป็นหน้าแรกของการเข้าสู่ระบบ
+          // วางไว้เหนือ Google เพราะเป็นทางที่ใช้ได้จริง ส่วน Google ยังไม่เปิด
+          // ใช้เปลือกปุ่มชุดเดียวกับ Google แต่ย้อมสีแบรนด์ ให้อ่านเป็นทางเลือก
+          // ที่เท่ากันแทนที่จะเป็นลิงก์ตัวเล็กห้อยท้าย
+          SizedBox(
+            height: 50,
+            child: OutlinedButton(
+              style: OutlinedButton.styleFrom(
+                backgroundColor: AppColors.surfaceLight,
+                side: BorderSide(color: AppColors.primary.withValues(alpha: 0.35)),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              onPressed: widget.onUseOtpLogin,
+              child: const Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.smartphone, size: 18, color: AppColors.primaryDark),
+                  SizedBox(width: 12),
+                  Text(
+                    'เข้าสู่ระบบด้วยเบอร์โทร',
+                    style: TextStyle(
+                      color: AppColors.primaryDark,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
           SizedBox(
             height: 50,
             child: OutlinedButton(
@@ -392,18 +423,6 @@ class _LoginFormState extends State<_LoginForm> {
                     style: TextStyle(color: Colors.black87, fontWeight: FontWeight.bold, fontSize: 14),
                   ),
                 ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 8),
-          // ทางกลับไปหน้าแรกของการเข้าสู่ระบบ ซึ่งคือการใช้เบอร์โทร + OTP
-          Center(
-            child: TextButton.icon(
-              onPressed: widget.onUseOtpLogin,
-              icon: const Icon(Icons.arrow_back, size: 16),
-              label: const Text(
-                'เข้าสู่ระบบด้วยเบอร์โทร (OTP)',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
               ),
             ),
           ),

@@ -70,8 +70,8 @@ void main() {
     expect(find.byType(LoginScreen), findsOneWidget);
     expect(find.byType(PhoneLoginScreen), findsNothing);
 
-    await tester.ensureVisible(find.text('เข้าสู่ระบบด้วยเบอร์โทร (OTP)'));
-    await tester.tap(find.text('เข้าสู่ระบบด้วยเบอร์โทร (OTP)'));
+    await tester.ensureVisible(find.text('เข้าสู่ระบบด้วยเบอร์โทร'));
+    await tester.tap(find.text('เข้าสู่ระบบด้วยเบอร์โทร'));
     await tester.pumpAndSettle();
 
     expect(find.byType(PhoneLoginScreen), findsOneWidget);
