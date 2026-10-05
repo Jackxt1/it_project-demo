@@ -284,3 +284,35 @@ WHERE NOT EXISTS (SELECT 1 FROM services WHERE name = 'ซ่อมรอยร�
 ALTER TABLE notifications DROP CONSTRAINT IF EXISTS notifications_type_check@@
 ALTER TABLE notifications ADD CONSTRAINT notifications_type_check
     CHECK (type IN ('BOOKING_STATUS', 'QUOTE', 'JOB_ASSIGNED', 'CHAT', 'PAYMENT', 'OTHER'))@@
+-- Phase: เข้าสู่ระบบด้วยเบอร์โทร + OTP
+-- ผู้ใช้ที่สมัครด้วยเบอร์จะไม่มีอีเมลและรหัสผ่าน
+ALTER TABLE users ALTER COLUMN email DROP NOT NULL@@
+ALTER TABLE users ALTER COLUMN password_hash DROP NOT NULL@@
+
+-- แปลงเบอร์เดิมเป็น E.164 รันซ้ำไม่มีผล เพราะเบอร์ที่แปลงแล้วไม่ match รูปแบบ 0xxxxxxxxx
+UPDATE users SET phone = '+66' || substring(regexp_replace(phone, '\D', '', 'g') from 2)
+ WHERE phone IS NOT NULL AND regexp_replace(phone, '\D', '', 'g') ~ '^0[689][0-9]{8}$'@@
+
+-- เบอร์ที่ไม่ใช่มือถือไทยหรือแปลงไม่ได้ ล้างทิ้งเพื่อให้ใส่ unique index ได้
+UPDATE users SET phone = NULL
+ WHERE phone IS NOT NULL AND phone !~ '^\+66[689][0-9]{8}$'@@
+
+-- เบอร์ซ้ำ: เก็บไว้กับบัญชีที่ id น้อยสุด ที่เหลือ set NULL
+UPDATE users u SET phone = NULL
+ WHERE u.phone IS NOT NULL
+   AND EXISTS (SELECT 1 FROM users o WHERE o.phone = u.phone AND o.id < u.id)@@
+
+CREATE UNIQUE INDEX IF NOT EXISTS ux_users_phone ON users (phone) WHERE phone IS NOT NULL@@
+
+CREATE TABLE IF NOT EXISTS otp_requests (
+    id          BIGSERIAL PRIMARY KEY,
+    phone       VARCHAR(20)  NOT NULL,
+    code_hash   VARCHAR(255) NOT NULL,
+    expires_at  TIMESTAMP    NOT NULL,
+    attempts    INT          NOT NULL DEFAULT 0,
+    consumed_at TIMESTAMP,
+    created_at  TIMESTAMP    NOT NULL DEFAULT now()
+)@@
+
+CREATE INDEX IF NOT EXISTS idx_otp_requests_phone_created
+    ON otp_requests (phone, created_at DESC)@@

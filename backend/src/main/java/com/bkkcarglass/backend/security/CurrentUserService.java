@@ -20,8 +20,14 @@ public class CurrentUserService {
         if (auth == null || !auth.isAuthenticated()) {
             throw new AccessDeniedException("Not authenticated");
         }
-        String email = auth.getName();
-        return userRepository.findByEmail(email)
-                .orElseThrow(() -> new ResourceNotFoundException("User", email));
+        // principal เป็น user id สำหรับ token ที่ออกตั้งแต่เฟสล็อกอินด้วยเบอร์โทร
+        // ส่วน token รุ่นก่อนหน้ายังมีอีเมลอยู่ จึง fallback ไปหาด้วยอีเมล
+        String principal = auth.getName();
+        if (principal != null && principal.matches("\\d+")) {
+            return userRepository.findById(Long.parseLong(principal))
+                    .orElseThrow(() -> new ResourceNotFoundException("User", principal));
+        }
+        return userRepository.findByEmail(principal)
+                .orElseThrow(() -> new ResourceNotFoundException("User", principal));
     }
 }

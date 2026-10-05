@@ -2,18 +2,22 @@ package com.bkkcarglass.backend.service;
 
 import com.bkkcarglass.backend.dto.AuthResponse;
 import com.bkkcarglass.backend.dto.LoginRequest;
+import com.bkkcarglass.backend.dto.OtpVerifyRequest;
 import com.bkkcarglass.backend.dto.RegisterRequest;
 import com.bkkcarglass.backend.entity.Role;
 import com.bkkcarglass.backend.entity.User;
 import com.bkkcarglass.backend.exception.EmailAlreadyExistsException;
 import com.bkkcarglass.backend.repository.UserRepository;
 import com.bkkcarglass.backend.security.JwtService;
+import com.bkkcarglass.backend.util.PhoneNormalizer;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
+import java.util.HashMap;
 import java.util.Map;
 
 @Service
@@ -24,6 +28,7 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
     private final AuthenticationManager authenticationManager;
+    private final OtpService otpService;
 
     public AuthResponse register(RegisterRequest request) {
         if (userRepository.existsByEmail(request.getEmail())) {
@@ -33,14 +38,16 @@ public class AuthService {
         User user = User.builder()
                 .fullName(request.getFullName())
                 .email(request.getEmail())
-                .phone(request.getPhone())
+                // เก็บเป็น E.164 เหมือนเส้นทาง OTP ไม่งั้นคนเดียวกันที่สมัครสองทาง
+                // จะได้สองบัญชีโดย unique index จับไม่ได้
+                .phone(normalizeOptionalPhone(request.getPhone()))
                 .passwordHash(passwordEncoder.encode(request.getPassword()))
                 .role(Role.CUSTOMER)
                 .build();
 
         user = userRepository.save(user);
 
-        String token = jwtService.generateToken(user.getEmail(), Map.of("role", user.getRole().name()));
+        String token = generateToken(user);
         return toAuthResponse(user, token);
     }
 
@@ -51,8 +58,50 @@ public class AuthService {
         User user = userRepository.findByEmail(request.getEmail())
                 .orElseThrow(() -> new IllegalStateException("User not found after authentication"));
 
-        String token = jwtService.generateToken(user.getEmail(), Map.of("role", user.getRole().name()));
+        String token = generateToken(user);
         return toAuthResponse(user, token);
+    }
+
+    /**
+     * ยืนยัน OTP แล้วเข้าบัญชีที่เป็นเจ้าของเบอร์นั้น ถ้ายังไม่มีก็สร้างให้ใหม่
+     * บัญชีที่เกิดทางนี้ไม่มีอีเมลและรหัสผ่าน จนกว่าผู้ใช้จะเพิ่มเองภายหลัง
+     */
+    @Transactional
+    public AuthResponse loginWithOtp(OtpVerifyRequest request) {
+        String phone = otpService.verify(request.getPhone(), request.getCode());
+
+        User user = userRepository.findByPhone(phone)
+                .orElseGet(() -> userRepository.save(User.builder()
+                        .fullName("")
+                        .phone(phone)
+                        .role(Role.CUSTOMER)
+                        .build()));
+
+        return toAuthResponse(user, generateToken(user));
+    }
+
+    /** เบอร์ตอนสมัครเป็นข้อมูลเสริม ไม่กรอกก็ได้ แต่ถ้ากรอกต้องเป็นเบอร์มือถือไทยที่ใช้ได้ */
+    private String normalizeOptionalPhone(String rawPhone) {
+        if (rawPhone == null || rawPhone.isBlank()) {
+            return null;
+        }
+        return PhoneNormalizer.toE164(rawPhone);
+    }
+
+    /**
+     * Subject ของ token คือ user id เพราะบัญชีที่ล็อกอินด้วยเบอร์ไม่มีอีเมล
+     * ส่วนอีเมล/เบอร์ใส่เป็น claim ให้ฝั่งที่ต้องใช้อ่านได้ (เช่น web admin)
+     */
+    private String generateToken(User user) {
+        Map<String, Object> claims = new HashMap<>();
+        claims.put("role", user.getRole().name());
+        if (user.getEmail() != null) {
+            claims.put("email", user.getEmail());
+        }
+        if (user.getPhone() != null) {
+            claims.put("phone", user.getPhone());
+        }
+        return jwtService.generateToken(String.valueOf(user.getId()), claims);
     }
 
     private AuthResponse toAuthResponse(User user, String token) {
@@ -62,7 +111,9 @@ public class AuthService {
                 .userId(user.getId())
                 .fullName(user.getFullName())
                 .email(user.getEmail())
+                .phone(user.getPhone())
                 .role(user.getRole().name())
+                .profileComplete(user.getFullName() != null && !user.getFullName().isBlank())
                 .build();
     }
 }

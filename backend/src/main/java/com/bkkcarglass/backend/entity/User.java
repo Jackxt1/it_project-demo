@@ -25,10 +25,12 @@ public class User {
     @Column(name = "full_name", nullable = false, length = 150)
     private String fullName;
 
-    @Column(nullable = false, unique = true, length = 150)
+    // null ได้ตั้งแต่เฟสล็อกอินด้วยเบอร์โทร บัญชีที่สมัครด้วยเบอร์ยังไม่มีอีเมล
+    @Column(unique = true, length = 150)
     private String email;
 
-    @Column(length = 30)
+    // unique เพราะเบอร์เป็น identity หลักของบัญชีลูกค้า
+    @Column(unique = true, length = 30)
     private String phone;
 
     @Column(name = "fcm_token", length = 255)
@@ -37,7 +39,8 @@ public class User {
     @Column(name = "profile_image_url", length = 500)
     private String profileImageUrl;
 
-    @Column(name = "password_hash", nullable = false)
+    // null สำหรับบัญชีที่ล็อกอินด้วยเบอร์ + OTP อย่างเดียว
+    @Column(name = "password_hash")
     private String passwordHash;
 
     @Enumerated(EnumType.STRING)

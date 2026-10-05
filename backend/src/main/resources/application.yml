@@ -53,7 +53,21 @@ app:
     # QR code. Leave empty to disable QR payment (shows a "not configured"
     # message instead of a broken QR).
     promptpay-id: ${PROMPTPAY_ID:0642200042}
+  otp:
+    length: ${OTP_LENGTH:6}
+    ttl-seconds: ${OTP_TTL_SECONDS:300}
+    resend-cooldown-seconds: ${OTP_RESEND_COOLDOWN_SECONDS:60}
+    max-per-hour: ${OTP_MAX_PER_HOUR:5}
+    max-attempts: ${OTP_MAX_ATTEMPTS:5}
+    # ตัวส่งรหัส ตอนนี้มีแค่ log ถ้าตั้งค่าอื่นที่ยังไม่มีคลาสรองรับ แอปจะบูตไม่ขึ้น
+    # ซึ่งดีกว่าบูตผ่านแล้วเงียบๆ ไม่ส่ง OTP ให้ใครเลย
+    sender: ${OTP_SENDER:log}
+    # ส่งรหัสกลับมาใน response ของ /otp/request เพื่อให้ทดสอบได้ตอน dev
+    # ต้องตั้งเป็น false ก่อน deploy ไม่งั้นใครก็ล็อกอินเป็นใครก็ได้ถ้ารู้เบอร์
+    expose-code: ${OTP_EXPOSE_CODE:true}
   cors:
     # Comma-separated list of allowed origins (Flutter Web admin, etc). Set
     # CORS_ALLOWED_ORIGINS to the real deployed domain(s) in production.
-    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5000,http://localhost:8080,http://localhost:3000}
+    # พอร์ต dev ตรงกับ .claude/launch.json: 3000 web_admin, 5050 technician_app,
+    # 5090 mobile (5000 เป็นพอร์ตเดิมของ mobile เก็บไว้เผื่อรันแบบเก่า)
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5000,http://localhost:8080,http://localhost:3000,http://localhost:5050,http://localhost:5090}

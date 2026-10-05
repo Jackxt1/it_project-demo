@@ -10,6 +10,7 @@ import com.bkkcarglass.backend.security.CurrentUserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import com.bkkcarglass.backend.util.PhoneNormalizer;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
@@ -39,7 +40,11 @@ public class UserService {
             user.setFullName(request.getFullName());
         }
         if (request.getPhone() != null) {
-            user.setPhone(request.getPhone());
+            // เก็บเป็น E.164 เสมอ เพราะเบอร์เป็น identity หลักของบัญชีลูกค้า
+            // เบอร์ว่างแปลว่าผู้ใช้ตั้งใจลบเบอร์ออก
+            user.setPhone(request.getPhone().isBlank()
+                    ? null
+                    : PhoneNormalizer.toE164(request.getPhone()));
         }
         if (request.getProfileImageUrl() != null) {
             user.setProfileImageUrl(request.getProfileImageUrl());

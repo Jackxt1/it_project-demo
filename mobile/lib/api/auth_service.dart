@@ -54,6 +54,34 @@ class AuthService {
     return _persistSession(data as Map<String, dynamic>);
   }
 
+  /// ยืนยัน OTP แล้วเก็บ session ที่ได้ เหมือนเส้นทาง [login]
+  Future<AuthSession> loginWithOtp({
+    required String phone,
+    required String code,
+  }) async {
+    final data = await ApiClient.instance.post('/api/auth/otp/verify', {
+      'phone': phone,
+      'code': code,
+    });
+    return _persistSession(data as Map<String, dynamic>);
+  }
+
+  /// บันทึกชื่อของผู้ใช้ที่เพิ่งสมัครด้วยเบอร์ แล้วอัปเดต session ที่เก็บไว้
+  /// เพื่อไม่ให้เปิดแอปครั้งหน้าแล้วถูกพากลับไปหน้ากรอกชื่ออีก
+  Future<void> completeProfile(String fullName) async {
+    await ApiClient.instance.put('/api/users/me', {'fullName': fullName});
+
+    final current = _session;
+    if (current == null) {
+      return;
+    }
+    final updated = current.copyWith(fullName: fullName, profileComplete: true);
+    _session = updated;
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_sessionPrefsKey, jsonEncode(updated.toJson()));
+  }
+
   Future<void> logout() async {
     _session = null;
     ApiClient.instance.token = null;
