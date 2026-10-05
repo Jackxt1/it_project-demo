@@ -2,6 +2,7 @@ package com.bkkcarglass.backend.service;
 
 import com.bkkcarglass.backend.dto.AuthResponse;
 import com.bkkcarglass.backend.dto.LoginRequest;
+import com.bkkcarglass.backend.dto.OtpVerifyRequest;
 import com.bkkcarglass.backend.dto.RegisterRequest;
 import com.bkkcarglass.backend.entity.Role;
 import com.bkkcarglass.backend.entity.User;
@@ -14,6 +15,7 @@ import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -26,6 +28,7 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
     private final AuthenticationManager authenticationManager;
+    private final OtpService otpService;
 
     public AuthResponse register(RegisterRequest request) {
         if (userRepository.existsByEmail(request.getEmail())) {
@@ -59,6 +62,24 @@ public class AuthService {
         return toAuthResponse(user, token);
     }
 
+    /**
+     * ยืนยัน OTP แล้วเข้าบัญชีที่เป็นเจ้าของเบอร์นั้น ถ้ายังไม่มีก็สร้างให้ใหม่
+     * บัญชีที่เกิดทางนี้ไม่มีอีเมลและรหัสผ่าน จนกว่าผู้ใช้จะเพิ่มเองภายหลัง
+     */
+    @Transactional
+    public AuthResponse loginWithOtp(OtpVerifyRequest request) {
+        String phone = otpService.verify(request.getPhone(), request.getCode());
+
+        User user = userRepository.findByPhone(phone)
+                .orElseGet(() -> userRepository.save(User.builder()
+                        .fullName("")
+                        .phone(phone)
+                        .role(Role.CUSTOMER)
+                        .build()));
+
+        return toAuthResponse(user, generateToken(user));
+    }
+
     /** เบอร์ตอนสมัครเป็นข้อมูลเสริม ไม่กรอกก็ได้ แต่ถ้ากรอกต้องเป็นเบอร์มือถือไทยที่ใช้ได้ */
     private String normalizeOptionalPhone(String rawPhone) {
         if (rawPhone == null || rawPhone.isBlank()) {
@@ -90,7 +111,9 @@ public class AuthService {
                 .userId(user.getId())
                 .fullName(user.getFullName())
                 .email(user.getEmail())
+                .phone(user.getPhone())
                 .role(user.getRole().name())
+                .profileComplete(user.getFullName() != null && !user.getFullName().isBlank())
                 .build();
     }
 }
