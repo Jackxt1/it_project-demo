@@ -122,11 +122,26 @@ and TECHNICIAN users, built entirely against the Phase 3 backend (`main`, commit
   so the browser never talks to the Spring Boot origin directly except WebSocket/STOMP.
 - Role gating: `middleware.ts` — `/dashboard/**` and `/staff/**` OWNER-only, `/queue/**` all
   three staff roles, everything else ADMIN/OWNER.
-- Pages: `/queue` (list + status update + technician assignment, realtime push for
-  technicians via `/topic/technician/{userId}/queue`), `/customers` (search + detail),
-  `/catalog` (services + products CRUD + stock), `/technicians` (account CRUD),
-  `/chat` (inbox + live thread via `/topic/chat/{bookingId}`), `/dashboard` (OWNER revenue
-  summary).
+- Pages: `/queue`, `/customers`, `/catalog` rebuilt to the Figma mockups (see below);
+  `/technicians` (account CRUD), `/chat` (inbox + live thread via `/topic/chat/{bookingId}`),
+  `/dashboard` (OWNER revenue summary), `/payments` (slip review).
+- `/queue` — three-column board (รอดำเนินการ / กำลังดำเนินการ / เสร็จสิ้น) with วันนี้ /
+  สัปดาห์นี้ / ทั้งหมด tabs, search, service filter, and morning/afternoon grouping.
+  The board has five statuses to fit in three columns: CONFIRMED shares the first column
+  with a label on the card, CANCELLED sits in a collapsed list under the board. Status
+  change, technician assignment and quote submission moved off the cards into a detail
+  panel opened by clicking a card — the mockup's cards have no controls at all, and the
+  backend still refuses IN_PROGRESS without a technician.
+- `/customers` — card list (avatar initials + car + plate + phone) beside a detail panel
+  with visits, total spend and service history, all derived from the bookings the detail
+  endpoint already returns. The list endpoint gained `vehicleBrandModel` /
+  `vehicleLicensePlate` (newest vehicle, one extra query per page, not one per row).
+- `/catalog` — product table with service tabs + counts, thumbnails, status pills and
+  add/edit modals. Tabs come from the real services, since products are tied to a service
+  and the mockup's "ฟิล์มกันร้อน/ฟิล์มกรองแสง" categories do not exist in the data. Film
+  specs stay in the modal behind a toggle (the chatbot needs them) and service base price
+  + `maxPerSlot` sit behind a link under the table (nowhere in the mockup, nowhere else
+  to set them).
 - Run: `cd web_admin && npm run dev` (needs the backend running; see `.env.local.example`
   for `BACKEND_URL`/`NEXT_PUBLIC_WS_URL`).
 - Tests: `cd web_admin && npm test` (Vitest) — covers `lib/session.ts` (auth/role-gating
