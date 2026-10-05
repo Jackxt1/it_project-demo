@@ -19,7 +19,10 @@ export function decodeToken(token: string): Session | null {
     if (typeof json.sub !== 'string' || typeof json.role !== 'string' || typeof json.exp !== 'number') {
       return null;
     }
-    return { email: json.sub, role: json.role as Role, exp: json.exp };
+    // ตั้งแต่เฟสล็อกอินด้วยเบอร์โทร sub ของ token คือ user id ส่วนอีเมลอยู่ใน claim
+    // แยก ส่วน token รุ่นก่อนหน้ายังมีอีเมลอยู่ที่ sub จึง fallback ไปอ่านจากตรงนั้น
+    const email = typeof json.email === 'string' ? json.email : json.sub;
+    return { email, role: json.role as Role, exp: json.exp };
   } catch {
     return null;
   }

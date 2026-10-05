@@ -8,7 +8,13 @@ function makeToken(payload: Record<string, unknown>): string {
 }
 
 describe('decodeToken', () => {
-  it('decodes a valid token payload', () => {
+  it('reads the email claim when the subject is a user id', () => {
+    const token = makeToken({ sub: '12', email: 'owner@test.com', role: 'OWNER', exp: 9999999999 });
+    const session = decodeToken(token);
+    expect(session).toEqual({ email: 'owner@test.com', role: 'OWNER', exp: 9999999999 });
+  });
+
+  it('falls back to the subject for tokens issued before the email claim existed', () => {
     const token = makeToken({ sub: 'owner@test.com', role: 'OWNER', exp: 9999999999 });
     const session = decodeToken(token);
     expect(session).toEqual({ email: 'owner@test.com', role: 'OWNER', exp: 9999999999 });
