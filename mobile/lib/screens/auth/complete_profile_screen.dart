@@ -121,7 +121,11 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
                 const SizedBox(height: 24),
                 SizedBox(
                   height: 48,
-                  child: ElevatedButton(
+                  child: FilledButton(
+                    style: FilledButton.styleFrom(
+                      backgroundColor: AppColors.primaryDark,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
                     onPressed: _submitting ? null : _submit,
                     child: _submitting
                         ? const SizedBox(

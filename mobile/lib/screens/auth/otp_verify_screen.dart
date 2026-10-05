@@ -175,7 +175,11 @@ class _OtpVerifyScreenState extends State<OtpVerifyScreen> {
               const SizedBox(height: 18),
               SizedBox(
                 height: 48,
-                child: ElevatedButton(
+                child: FilledButton(
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppColors.primaryDark,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
                   onPressed: _submitting ? null : _submit,
                   child: _submitting
                       ? const SizedBox(

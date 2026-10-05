@@ -141,7 +141,11 @@ class _PhoneLoginScreenState extends State<PhoneLoginScreen> {
                       const SizedBox(height: 22),
                       SizedBox(
                         height: 48,
-                        child: ElevatedButton(
+                        child: FilledButton(
+                          style: FilledButton.styleFrom(
+                            backgroundColor: AppColors.primaryDark,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
                           onPressed: _submitting ? null : _requestCode,
                           child: _submitting
                               ? const SizedBox(
