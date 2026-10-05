@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../api/auth_service.dart';
 import '../../theme/app_theme.dart';
-import '../auth/login_screen.dart';
+import '../auth/phone_login_screen.dart';
 import 'vehicles_screen.dart';
 
 /// แท็บ "โปรไฟล์" (Task 8): การ์ดหัวสีแดงแสดง avatar/ชื่อ/อีเมลของผู้ใช้ที่
@@ -37,7 +37,7 @@ class ProfileScreen extends StatelessWidget {
     await AuthService.instance.logout();
     if (!context.mounted) return;
     Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(builder: (_) => const LoginScreen()),
+      MaterialPageRoute(builder: (_) => const PhoneLoginScreen()),
       (route) => false,
     );
   }

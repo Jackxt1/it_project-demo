@@ -8,7 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:bkk_customer/api/api_client.dart';
 import 'package:bkk_customer/api/auth_service.dart';
-import 'package:bkk_customer/screens/auth/login_screen.dart';
+import 'package:bkk_customer/screens/auth/phone_login_screen.dart';
 import 'package:bkk_customer/screens/bookings/booking_detail_screen.dart';
 import 'package:bkk_customer/screens/profile/profile_screen.dart';
 import 'package:bkk_customer/screens/notifications/notifications_screen.dart';
@@ -264,7 +264,7 @@ void main() {
 
     testWidgets(
       'tapping ออกจากระบบ and confirming calls AuthService.logout and '
-      'returns to LoginScreen',
+      'returns to PhoneLoginScreen',
       (WidgetTester tester) async {
         await tester.pumpWidget(_wrap(const ProfileScreen()));
         await tester.pumpAndSettle();
@@ -281,7 +281,7 @@ void main() {
         await tester.pumpAndSettle();
 
         expect(AuthService.instance.session, isNull);
-        expect(find.byType(LoginScreen), findsOneWidget);
+        expect(find.byType(PhoneLoginScreen), findsOneWidget);
       },
     );
   });
