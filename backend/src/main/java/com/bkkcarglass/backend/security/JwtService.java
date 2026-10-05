@@ -25,25 +25,29 @@ public class JwtService {
         this.expirationMs = expirationMs;
     }
 
-    public String generateToken(String subjectEmail, Map<String, Object> claims) {
+    public String generateToken(String subject, Map<String, Object> claims) {
         Date now = new Date();
         Date expiry = new Date(now.getTime() + expirationMs);
         return Jwts.builder()
                 .claims(claims)
-                .subject(subjectEmail)
+                .subject(subject)
                 .issuedAt(now)
                 .expiration(expiry)
                 .signWith(signingKey)
                 .compact();
     }
 
-    public String extractEmail(String token) {
+    /**
+     * Subject ของ token คือ user id ตั้งแต่เฟสล็อกอินด้วยเบอร์โทรเป็นต้นมา
+     * token ที่ออกก่อนหน้านั้นมีอีเมลเป็น subject ซึ่งยังรองรับอยู่
+     */
+    public String extractSubject(String token) {
         return extractClaim(token, Claims::getSubject);
     }
 
-    public boolean isTokenValid(String token, String expectedEmail) {
-        String email = extractEmail(token);
-        return email.equals(expectedEmail) && !isTokenExpired(token);
+    public boolean isTokenValid(String token, String expectedSubject) {
+        String subject = extractSubject(token);
+        return subject.equals(expectedSubject) && !isTokenExpired(token);
     }
 
     private boolean isTokenExpired(String token) {
