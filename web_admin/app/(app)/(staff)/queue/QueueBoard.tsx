@@ -1,36 +1,73 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { apiGet, apiPut, apiPatch, ApiError } from '@/lib/api';
-import type { Booking, BookingStatus, Technician } from '@/lib/types';
-import StatusBadge, { STATUS_LABELS } from '@/components/StatusBadge';
+import type { Booking, BookingStatus, Service, Technician } from '@/lib/types';
 import { createStompClient } from '@/lib/ws';
 import { upsertBooking } from '@/lib/queueStore';
+import { slotStartHour } from '@/lib/format';
 import type { Role } from '@/lib/session';
+import QueueCard from './QueueCard';
+import BookingDetailPanel from './BookingDetailPanel';
 
-const STATUS_OPTIONS: BookingStatus[] = ['PENDING', 'CONFIRMED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED'];
+type DateRange = 'TODAY' | 'WEEK' | 'ALL';
 
-const priceFormat = new Intl.NumberFormat('th-TH');
+const RANGE_TABS: { key: DateRange; label: string }[] = [
+  { key: 'TODAY', label: 'วันนี้' },
+  { key: 'WEEK', label: 'สัปดาห์นี้' },
+  { key: 'ALL', label: 'ทั้งหมด' },
+];
+
+/**
+ * The board shows three columns, while bookings have five statuses.
+ * "ยืนยันแล้ว" is still waiting for work to start, so it shares the first
+ * column and is told apart by a label on the card. "ยกเลิก" has no column —
+ * it sits in a collapsed list under the board so nothing disappears.
+ */
+const COLUMNS: { key: string; label: string; statuses: BookingStatus[]; countClass: string }[] = [
+  { key: 'waiting', label: 'รอดำเนินการ', statuses: ['PENDING', 'CONFIRMED'], countClass: 'text-amber-500' },
+  { key: 'active', label: 'กำลังดำเนินการ', statuses: ['IN_PROGRESS'], countClass: 'text-amber-500' },
+  { key: 'done', label: 'เสร็จสิ้น', statuses: ['COMPLETED'], countClass: 'text-emerald-600' },
+];
+
+function toLocalDateString(date: Date): string {
+  const month = `${date.getMonth() + 1}`.padStart(2, '0');
+  const day = `${date.getDate()}`.padStart(2, '0');
+  return `${date.getFullYear()}-${month}-${day}`;
+}
+
+/** Monday-to-Sunday window containing today, as inclusive ISO date strings. */
+function currentWeek(): { from: string; to: string } {
+  const now = new Date();
+  const monday = new Date(now);
+  monday.setDate(now.getDate() - ((now.getDay() + 6) % 7));
+  const sunday = new Date(monday);
+  sunday.setDate(monday.getDate() + 6);
+  return { from: toLocalDateString(monday), to: toLocalDateString(sunday) };
+}
 
 export default function QueueBoard({ role, userId }: { role: Role; userId: number | null }) {
   const isTechnician = role === 'TECHNICIAN';
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [technicians, setTechnicians] = useState<Technician[]>([]);
+  const [services, setServices] = useState<Service[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [quoteDrafts, setQuoteDrafts] = useState<Record<number, string>>({});
-  const [submittingQuoteId, setSubmittingQuoteId] = useState<number | null>(null);
-  const [dateFilter, setDateFilter] = useState('');
-  const [statusFilter, setStatusFilter] = useState<BookingStatus | 'ALL'>('ALL');
+
+  const [range, setRange] = useState<DateRange>('TODAY');
+  const [search, setSearch] = useState('');
+  const [serviceFilter, setServiceFilter] = useState<number | 'ALL'>('ALL');
+  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [showCancelled, setShowCancelled] = useState(false);
 
   useEffect(() => {
     async function load() {
       try {
         const data = await apiGet<Booking[]>(isTechnician ? '/technician/bookings/me' : '/bookings');
         setBookings(data);
+        setServices(await apiGet<Service[]>('/services'));
         if (!isTechnician) {
-          const techs = await apiGet<Technician[]>('/admin/technicians?active=true');
-          setTechnicians(techs);
+          setTechnicians(await apiGet<Technician[]>('/admin/technicians?active=true'));
         }
       } catch (err) {
         setError(err instanceof ApiError ? err.message : 'โหลดข้อมูลไม่สำเร็จ');
@@ -80,7 +117,11 @@ export default function QueueBoard({ role, userId }: { role: Role; userId: numbe
     if (!raw) return;
     const id = Number(raw);
     if (Number.isNaN(id)) return;
+    // A highlighted booking can be any date, so widen the range or the card
+    // the admin was sent to look at would not be on the board at all.
+    setRange('ALL');
     setHighlightedId(id);
+    setSelectedId(id);
     const timer = setTimeout(() => setHighlightedId(null), 4000);
     return () => clearTimeout(timer);
   }, [searchParams]);
@@ -98,6 +139,7 @@ export default function QueueBoard({ role, userId }: { role: Role; userId: numbe
       const path = isTechnician ? `/technician/bookings/${id}/status` : `/bookings/${id}/status`;
       const updated = await apiPut<Booking>(path, { status });
       setBookings((prev) => prev.map((b) => (b.id === id ? updated : b)));
+      setError(null);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'อัปเดตสถานะไม่สำเร็จ');
     }
@@ -107,224 +149,190 @@ export default function QueueBoard({ role, userId }: { role: Role; userId: numbe
     try {
       const updated = await apiPatch<Booking>(`/bookings/${id}/technician`, { technicianId });
       setBookings((prev) => prev.map((b) => (b.id === id ? updated : b)));
-      // Assigning a technician while a job is still pending auto-confirms
-      // it on the backend — jump the filter tab there so the admin sees
-      // the result of what they just did instead of the card just
-      // vanishing from "รอดำเนินการ".
-      if (updated.status === 'CONFIRMED') {
-        setStatusFilter('CONFIRMED');
-      }
+      setError(null);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'มอบหมายช่างไม่สำเร็จ');
     }
   }
 
-  async function submitQuote(booking: Booking) {
-    const raw = quoteDrafts[booking.id];
-    const quotePrice = Number(raw);
-    if (!raw || Number.isNaN(quotePrice) || quotePrice <= 0) {
-      setError('กรอกราคาประเมินให้ถูกต้องก่อนส่ง');
-      return;
-    }
-    setSubmittingQuoteId(booking.id);
+  async function submitQuote(booking: Booking, quotePrice: number) {
     try {
       const updated = await apiPut<Booking>(`/bookings/${booking.id}/status`, {
         status: booking.status,
         quotePrice,
       });
       setBookings((prev) => prev.map((b) => (b.id === booking.id ? updated : b)));
-      setQuoteDrafts((prev) => {
-        const next = { ...prev };
-        delete next[booking.id];
-        return next;
-      });
+      setError(null);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'ส่งใบเสนอราคาไม่สำเร็จ');
-    } finally {
-      setSubmittingQuoteId(null);
     }
   }
 
-  if (loading) return <p>กำลังโหลด...</p>;
+  const inRange = useMemo(() => {
+    if (range === 'ALL') return bookings;
+    if (range === 'TODAY') {
+      const today = toLocalDateString(new Date());
+      return bookings.filter((b) => b.bookingDate === today);
+    }
+    const { from, to } = currentWeek();
+    return bookings.filter((b) => b.bookingDate >= from && b.bookingDate <= to);
+  }, [bookings, range]);
 
-  const dateFilteredBookings = dateFilter ? bookings.filter((b) => b.bookingDate === dateFilter) : bookings;
-  const visibleBookings =
-    statusFilter === 'ALL' ? dateFilteredBookings : dateFilteredBookings.filter((b) => b.status === statusFilter);
+  const filtered = useMemo(() => {
+    const term = search.trim().toLowerCase();
+    return inRange.filter((b) => {
+      if (serviceFilter !== 'ALL' && b.serviceId !== serviceFilter) return false;
+      if (!term) return true;
+      return [b.userFullName, b.vehicleBrandModel, b.vehicleLicensePlate, b.orderCode]
+        .filter(Boolean)
+        .some((field) => field!.toLowerCase().includes(term));
+    });
+  }, [inRange, search, serviceFilter]);
 
-  const statusCounts = STATUS_OPTIONS.reduce((acc, status) => {
-    acc[status] = dateFilteredBookings.filter((b) => b.status === status).length;
-    return acc;
-  }, {} as Record<BookingStatus, number>);
+  const cancelled = filtered.filter((b) => b.status === 'CANCELLED');
+  const selected = bookings.find((b) => b.id === selectedId) ?? null;
+
+  if (loading) return <p className="text-gray-500">กำลังโหลด...</p>;
 
   return (
-    <div className="space-y-3">
-      {error && <p className="rounded bg-red-50 p-3 text-sm text-brand">{error}</p>}
+    <div className="space-y-4">
+      {error && <p className="rounded-lg bg-red-50 p-3 text-sm text-brand">{error}</p>}
 
-      <div className="flex items-center gap-2">
-        <label htmlFor="queue-date-filter" className="text-sm text-gray-500">
-          กรองตามวันที่
-        </label>
-        <input
-          id="queue-date-filter"
-          type="date"
-          value={dateFilter}
-          onChange={(e) => setDateFilter(e.target.value)}
-          className="rounded border border-gray-300 px-2 py-1 text-sm"
-        />
-        {dateFilter && (
-          <button onClick={() => setDateFilter('')} className="text-sm text-brand underline">
-            ล้างตัวกรอง
-          </button>
-        )}
-      </div>
-
-      <div className="flex flex-wrap gap-1 rounded-md bg-gray-100 p-1 text-sm">
-        <button
-          onClick={() => setStatusFilter('ALL')}
-          className={`rounded px-3 py-1 ${
-            statusFilter === 'ALL' ? 'bg-gradient-to-r from-[#be1a1a] to-[#580c0c] text-white shadow-sm' : 'text-gray-500'
-          }`}
-        >
-          ทั้งหมด ({dateFilteredBookings.length})
-        </button>
-        {STATUS_OPTIONS.map((status) => (
+      <div className="flex flex-wrap gap-2">
+        {RANGE_TABS.map((tab) => (
           <button
-            key={status}
-            onClick={() => setStatusFilter(status)}
-            className={`rounded px-3 py-1 ${
-              statusFilter === status ? 'bg-gradient-to-r from-[#be1a1a] to-[#580c0c] text-white shadow-sm' : 'text-gray-500'
+            key={tab.key}
+            type="button"
+            onClick={() => setRange(tab.key)}
+            className={`rounded-full px-5 py-1.5 text-sm font-semibold transition ${
+              range === tab.key
+                ? 'bg-gradient-to-r from-[#be1a1a] to-[#580c0c] text-white shadow-sm'
+                : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
             }`}
           >
-            {STATUS_LABELS[status]} ({statusCounts[status]})
+            {tab.label}
           </button>
         ))}
       </div>
 
-      {visibleBookings.length === 0 && (
-        <p className="text-gray-500">{dateFilter ? 'ไม่มีงานในคิววันที่เลือก' : 'ไม่มีงานในคิว'}</p>
-      )}
-      {visibleBookings.map((booking) => (
-        <div
-          key={booking.id}
-          id={`booking-${booking.id}`}
-          className={`rounded-lg border bg-white p-4 shadow-sm transition-colors ${
-            highlightedId === booking.id ? 'border-brand ring-2 ring-brand' : 'border-gray-200'
-          }`}
-        >
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="font-semibold">
-                {booking.serviceName} — {booking.userFullName}
-              </p>
-              <p className="text-sm text-gray-500">
-                {booking.bookingDate} {booking.timeSlot}
-                {booking.orderCode ? ` · ${booking.orderCode}` : ''}
-              </p>
-              {!isTechnician && (
-                <p className="text-sm text-gray-500">ช่าง: {booking.technicianName ?? 'ยังไม่มอบหมาย'}</p>
-              )}
-            </div>
-            <StatusBadge status={booking.status} />
-          </div>
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="relative min-w-[220px] flex-1">
+          <svg
+            viewBox="0 0 20 20"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth={1.8}
+            className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-brand"
+          >
+            <circle cx="9" cy="9" r="6" />
+            <path d="m14 14 3 3" strokeLinecap="round" />
+          </svg>
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="ค้นหาชื่อ ทะเบียนรถ"
+            className="w-full rounded-full border border-gray-200 bg-white py-2 pl-9 pr-4 text-sm outline-none focus:border-brand"
+          />
+        </div>
 
-          {(booking.imageUrl || booking.budget != null || booking.quotePrice != null) && (
-            <div className="mt-3 flex items-start gap-3 rounded-md bg-gray-50 p-3">
-              {booking.imageUrl && (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={booking.imageUrl}
-                  alt="รูปที่ลูกค้าแนบ"
-                  className="h-20 w-20 shrink-0 rounded object-cover"
-                  onClick={() => window.open(booking.imageUrl!, '_blank')}
-                  role="button"
-                />
-              )}
-              <div className="text-sm">
-                {booking.budget != null && (
-                  <p>
-                    งบลูกค้า: <span className="font-medium">{priceFormat.format(booking.budget)} บาท</span>
-                  </p>
-                )}
-                {booking.quotePrice != null ? (
-                  <p>
-                    ราคาประเมินที่ส่งแล้ว:{' '}
-                    <span className="font-medium">{priceFormat.format(booking.quotePrice)} บาท</span>
-                  </p>
-                ) : (
-                  !isTechnician && (
-                    <div className="mt-1 flex items-center gap-2">
-                      <input
-                        type="number"
-                        min={0}
-                        placeholder="ราคาประเมิน (บาท)"
-                        value={quoteDrafts[booking.id] ?? ''}
-                        onChange={(e) =>
-                          setQuoteDrafts((prev) => ({ ...prev, [booking.id]: e.target.value }))
-                        }
-                        className="w-40 rounded border border-gray-300 px-2 py-1 text-sm"
-                      />
-                      <button
-                        onClick={() => submitQuote(booking)}
-                        disabled={submittingQuoteId === booking.id}
-                        className="rounded bg-brand px-3 py-1 text-sm text-white disabled:opacity-40"
-                      >
-                        {submittingQuoteId === booking.id ? 'กำลังส่ง...' : 'ส่งใบเสนอราคา'}
-                      </button>
+        <label className="flex items-center gap-2 text-sm text-gray-500">
+          เลือกบริการ
+          <select
+            value={serviceFilter}
+            onChange={(e) => setServiceFilter(e.target.value === 'ALL' ? 'ALL' : Number(e.target.value))}
+            className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 outline-none focus:border-brand"
+          >
+            <option value="ALL">ทุกบริการ</option>
+            {services.map((service) => (
+              <option key={service.id} value={service.id}>
+                {service.name}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
+        <div className="grid flex-1 gap-4 md:grid-cols-3">
+          {COLUMNS.map((column) => {
+            const items = filtered.filter((b) => column.statuses.includes(b.status));
+            const morning = items.filter((b) => slotStartHour(b.timeSlot) < 12);
+            const afternoon = items.filter((b) => slotStartHour(b.timeSlot) >= 12);
+
+            return (
+              <section key={column.key} className="rounded-2xl bg-gray-100/70 p-3">
+                <header className="mb-3 flex items-baseline justify-between px-1">
+                  <h2 className="text-sm font-bold text-gray-700">{column.label}</h2>
+                  <span className={`text-sm font-bold ${column.countClass}`}>{items.length}</span>
+                </header>
+
+                {items.length === 0 && <p className="px-1 pb-2 text-xs text-gray-400">ไม่มีงาน</p>}
+
+                {[
+                  { label: 'ช่วงเช้า', list: morning },
+                  { label: 'ช่วงบ่าย', list: afternoon },
+                ].map((group) =>
+                  group.list.length === 0 ? null : (
+                    <div key={group.label} className="mb-3 last:mb-0">
+                      <p className="mb-2 px-1 text-xs text-gray-400">{group.label}</p>
+                      <div className="space-y-2">
+                        {group.list.map((booking) => (
+                          <QueueCard
+                            key={booking.id}
+                            booking={booking}
+                            selected={selectedId === booking.id}
+                            highlighted={highlightedId === booking.id}
+                            onSelect={() => setSelectedId(booking.id)}
+                          />
+                        ))}
+                      </div>
                     </div>
-                  )
+                  ),
                 )}
-              </div>
+              </section>
+            );
+          })}
+        </div>
+
+        {selected && (
+          <BookingDetailPanel
+            booking={selected}
+            technicians={technicians}
+            isTechnician={isTechnician}
+            onClose={() => setSelectedId(null)}
+            onUpdateStatus={(status) => updateStatus(selected.id, status)}
+            onAssignTechnician={(technicianId) => assignTechnician(selected.id, technicianId)}
+            onSubmitQuote={(quotePrice) => submitQuote(selected, quotePrice)}
+          />
+        )}
+      </div>
+
+      {cancelled.length > 0 && (
+        <div className="rounded-2xl border border-gray-200 bg-white p-3">
+          <button
+            type="button"
+            onClick={() => setShowCancelled((v) => !v)}
+            className="flex w-full items-center justify-between text-sm font-semibold text-gray-500"
+          >
+            <span>งานที่ยกเลิก ({cancelled.length})</span>
+            <span className="text-xs">{showCancelled ? 'ซ่อน' : 'แสดง'}</span>
+          </button>
+          {showCancelled && (
+            <div className="mt-3 grid gap-2 md:grid-cols-3">
+              {cancelled.map((booking) => (
+                <div key={booking.id} className="opacity-60">
+                  <QueueCard
+                    booking={booking}
+                    selected={selectedId === booking.id}
+                    highlighted={highlightedId === booking.id}
+                    onSelect={() => setSelectedId(booking.id)}
+                  />
+                </div>
+              ))}
             </div>
           )}
-
-          <div className="mt-3 flex flex-wrap items-center gap-2">
-            {isTechnician ? (
-              <>
-                <button
-                  onClick={() => updateStatus(booking.id, 'IN_PROGRESS')}
-                  disabled={booking.status !== 'CONFIRMED'}
-                  className="rounded bg-brand px-3 py-1 text-sm text-white disabled:opacity-40"
-                >
-                  เริ่มงาน
-                </button>
-                <button
-                  onClick={() => updateStatus(booking.id, 'COMPLETED')}
-                  disabled={booking.status !== 'IN_PROGRESS'}
-                  className="rounded bg-green-600 px-3 py-1 text-sm text-white disabled:opacity-40"
-                >
-                  เสร็จสิ้น
-                </button>
-              </>
-            ) : (
-              <>
-                <select
-                  value={booking.status}
-                  onChange={(e) => updateStatus(booking.id, e.target.value as BookingStatus)}
-                  className="rounded border border-gray-300 px-2 py-1 text-sm"
-                >
-                  {STATUS_OPTIONS.map((status) => (
-                    <option key={status} value={status}>
-                      {STATUS_LABELS[status]}
-                    </option>
-                  ))}
-                </select>
-                <select
-                  value={booking.technicianId ?? ''}
-                  onChange={(e) => e.target.value && assignTechnician(booking.id, Number(e.target.value))}
-                  className="rounded border border-gray-300 px-2 py-1 text-sm"
-                >
-                  <option value="">มอบหมายช่าง</option>
-                  {technicians.map((tech) => (
-                    <option key={tech.id} value={tech.id}>
-                      {tech.fullName}
-                    </option>
-                  ))}
-                </select>
-              </>
-            )}
-          </div>
         </div>
-      ))}
+      )}
     </div>
   );
 }

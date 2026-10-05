@@ -19,7 +19,7 @@ export default async function QueuePage() {
 
   return (
     <div>
-      <h1 className="mb-4 text-xl font-bold text-brand-deep">คิวงาน</h1>
+      <h1 className="mb-4 text-2xl font-bold text-brand-deep">กระดานคิวงาน</h1>
       <Suspense fallback={null}>
         <QueueBoard role={role} userId={userId} />
       </Suspense>
