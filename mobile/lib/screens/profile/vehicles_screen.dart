@@ -6,6 +6,9 @@ import '../../models/vehicle.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/vehicle_form.dart';
 
+const _pageBackground = Color(0xFFF7F4F4);
+const _hairline = Color(0xFFEDE4E4);
+
 /// โปรไฟล์ → "รถของฉัน" (brief Task 8): รายการรถที่บันทึกไว้ + เพิ่ม/แก้/ลบ,
 /// ใช้ [VehicleService] และฟอร์มร่วมกับ booking step 1 ([VehicleFormFields]).
 class VehiclesScreen extends StatefulWidget {
@@ -92,11 +95,22 @@ class _VehiclesScreenState extends State<VehiclesScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('รถของฉัน')),
-      floatingActionButton: FloatingActionButton(
+      backgroundColor: _pageBackground,
+      appBar: AppBar(
+        title: const Text('รถของฉัน', style: TextStyle(fontWeight: FontWeight.w700)),
+        backgroundColor: Colors.white,
+        surfaceTintColor: Colors.white,
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(1),
+          child: Container(height: 1, color: _hairline),
+        ),
+      ),
+      floatingActionButton: FloatingActionButton.extended(
         backgroundColor: AppColors.primary,
+        foregroundColor: Colors.white,
         onPressed: () => _openForm(),
-        child: const Icon(Icons.add, color: Colors.white),
+        icon: const Icon(Icons.add),
+        label: const Text('เพิ่มรถ', style: TextStyle(fontWeight: FontWeight.w700)),
       ),
       body: SafeArea(child: _buildBody()),
     );
@@ -112,9 +126,12 @@ class _VehiclesScreenState extends State<VehiclesScreen> {
         onRefresh: _load,
         child: ListView(
           children: [
-            const SizedBox(height: 96),
-            Center(
-              child: Text(_error!, style: const TextStyle(color: Colors.red)),
+            const SizedBox(height: 90),
+            _EmptyState(
+              icon: Icons.cloud_off_outlined,
+              title: _error!,
+              hint: 'ดึงลงเพื่อลองใหม่',
+              tint: const Color(0xFFD92020),
             ),
           ],
         ),
@@ -125,12 +142,11 @@ class _VehiclesScreenState extends State<VehiclesScreen> {
         onRefresh: _load,
         child: ListView(
           children: const [
-            SizedBox(height: 96),
-            Center(
-              child: Text(
-                'ยังไม่มีรถที่บันทึกไว้',
-                style: TextStyle(color: Colors.black54, fontSize: 15),
-              ),
+            SizedBox(height: 90),
+            _EmptyState(
+              icon: Icons.directions_car_outlined,
+              title: 'ยังไม่มีรถที่บันทึกไว้',
+              hint: 'เพิ่มรถไว้ก่อน จองครั้งต่อไปจะได้ไม่ต้องกรอกใหม่',
             ),
           ],
         ),
@@ -139,42 +155,203 @@ class _VehiclesScreenState extends State<VehiclesScreen> {
     return RefreshIndicator(
       onRefresh: _load,
       child: ListView.separated(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
         itemCount: vehicles.length,
         separatorBuilder: (_, _) => const SizedBox(height: 12),
-        itemBuilder: (context, index) {
-          final vehicle = vehicles[index];
-          final title = vehicle.year != null
-              ? '${vehicle.brandModel} ${vehicle.year}'
-              : vehicle.brandModel;
-          return Card(
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-              side: BorderSide(color: Colors.grey.shade300),
+        itemBuilder: (context, index) => _VehicleCard(
+          vehicle: vehicles[index],
+          onEdit: () => _openForm(existing: vehicles[index]),
+          onDelete: () => _delete(vehicles[index]),
+        ),
+      ),
+    );
+  }
+}
+
+class _EmptyState extends StatelessWidget {
+  const _EmptyState({
+    required this.icon,
+    required this.title,
+    required this.hint,
+    this.tint = AppColors.primary,
+  });
+
+  final IconData icon;
+  final String title;
+  final String hint;
+  final Color tint;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Container(
+          width: 76,
+          height: 76,
+          decoration: BoxDecoration(
+            color: tint.withValues(alpha: 0.10),
+            shape: BoxShape.circle,
+          ),
+          child: Icon(icon, size: 34, color: tint),
+        ),
+        const SizedBox(height: 16),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 32),
+          child: Text(
+            title,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              fontSize: 15.5,
+              fontWeight: FontWeight.w700,
+              color: Color(0xFF2B2B2B),
             ),
-            child: ListTile(
-              leading: const CircleAvatar(
-                backgroundColor: AppColors.surfaceLight,
-                child: Icon(Icons.directions_car, color: AppColors.primary),
-              ),
-              title: Text(title),
-              subtitle: Text(vehicle.licensePlate),
-              trailing: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  IconButton(
-                    icon: const Icon(Icons.edit_outlined),
-                    onPressed: () => _openForm(existing: vehicle),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.delete_outline, color: Colors.red),
-                    onPressed: () => _delete(vehicle),
-                  ),
-                ],
-              ),
+          ),
+        ),
+        const SizedBox(height: 6),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 40),
+          child: Text(
+            hint,
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 13, color: Colors.grey.shade500, height: 1.45),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _VehicleCard extends StatelessWidget {
+  const _VehicleCard({
+    required this.vehicle,
+    required this.onEdit,
+    required this.onDelete,
+  });
+
+  final Vehicle vehicle;
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    final title = vehicle.year != null
+        ? '${vehicle.brandModel} ${vehicle.year}'
+        : vehicle.brandModel;
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: _hairline),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 46,
+            height: 46,
+            decoration: BoxDecoration(
+              color: AppColors.surfaceLight,
+              borderRadius: BorderRadius.circular(13),
             ),
-          );
-        },
+            child: const Icon(Icons.directions_car, color: AppColors.primary),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 15,
+                    color: Color(0xFF2B2B2B),
+                  ),
+                ),
+                const SizedBox(height: 5),
+                // ทะเบียนทำเป็นป้ายเลียนแบบแผ่นป้ายจริง เพื่อให้กวาดตาหารถ
+                // ที่ต้องการเจอเร็วกว่าอ่านเป็นข้อความบรรทัดรอง
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: _pageBackground,
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: _hairline),
+                  ),
+                  child: Text(
+                    vehicle.licensePlate,
+                    style: TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: 0.5,
+                      color: Colors.grey.shade700,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          _CardIconButton(
+            icon: Icons.edit_outlined,
+            tooltip: 'แก้ไข',
+            color: const Color(0xFFB7791F),
+            background: const Color(0xFFFFF4DB),
+            onPressed: onEdit,
+          ),
+          const SizedBox(width: 8),
+          _CardIconButton(
+            icon: Icons.delete_outline,
+            tooltip: 'ลบ',
+            color: const Color(0xFFD92020),
+            background: const Color(0xFFFDE9E9),
+            onPressed: onDelete,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CardIconButton extends StatelessWidget {
+  const _CardIconButton({
+    required this.icon,
+    required this.tooltip,
+    required this.color,
+    required this.background,
+    required this.onPressed,
+  });
+
+  final IconData icon;
+  final String tooltip;
+  final Color color;
+  final Color background;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip,
+      child: Material(
+        color: background,
+        borderRadius: BorderRadius.circular(10),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onPressed,
+          child: SizedBox(
+            width: 36,
+            height: 36,
+            child: Icon(icon, size: 18, color: color),
+          ),
+        ),
       ),
     );
   }

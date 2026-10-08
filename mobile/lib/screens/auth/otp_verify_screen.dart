@@ -6,6 +6,7 @@ import '../../api/api_client.dart';
 import '../../api/auth_service.dart';
 import '../../api/otp_api.dart';
 import '../../theme/app_theme.dart';
+import '../../util/phone_display.dart';
 import '../../widgets/auth_widgets.dart';
 import '../../widgets/otp_code_field.dart';
 import '../main_shell.dart';
@@ -72,14 +73,7 @@ class _OtpVerifyScreenState extends State<OtpVerifyScreen> {
   }
 
   /// +66968563615 → 096-856-3615 ให้ผู้ใช้อ่านง่าย
-  String get _displayPhone {
-    final digits = widget.phone.replaceAll(RegExp(r'\D'), '');
-    final national = digits.startsWith('66') ? '0${digits.substring(2)}' : digits;
-    if (national.length != 10) {
-      return widget.phone;
-    }
-    return '${national.substring(0, 3)}-${national.substring(3, 6)}-${national.substring(6)}';
-  }
+  String get _displayPhone => formatThaiPhone(widget.phone);
 
   String get _countdownLabel {
     final minutes = (_secondsLeft ~/ 60).toString().padLeft(2, '0');
