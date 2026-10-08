@@ -3,6 +3,7 @@ package com.bkkcarglass.backend.service.slip;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.core.io.ByteArrayResource;
@@ -24,8 +25,8 @@ import java.math.BigDecimal;
  * เพราะอันนี้จับสลิปปลอมและสลิปซ้ำได้จริง
  *
  * <p>ส่ง {@code log=true} เพื่อให้ SlipOK จำสลิปไว้ (เช็กสลิปซ้ำได้) และเทียบ
- * บัญชีผู้รับกับบัญชีที่ร้านลงทะเบียนไว้ กับส่ง {@code amount} เพื่อให้ SlipOK
- * เทียบยอดให้ด้วย — ทั้งสามอย่างจบในการเรียกครั้งเดียว
+ * บัญชีผู้รับกับบัญชีที่ร้านลงทะเบียนไว้ ส่วนยอดเงินเทียบเองจาก {@code data.amount}
+ * ที่เขาส่งกลับมา ไม่ส่ง {@code amount} ให้เขาเทียบ — ดู {@code requestFor}
  *
  * <p>ผ่านเฉพาะตอน SlipOK ตอบ success อย่างอื่นตกไปให้แอดมินตรวจเองพร้อมเหตุผล
  * แยกสองแบบ: ปัญหาที่ตัวสลิป (ซ้ำ/ยอดไม่ตรง/บัญชีผิด) เขียนโน้ตให้เห็น ส่วน
@@ -52,7 +53,7 @@ public class SlipOkVerifier implements SlipVerifier {
     private final String branchId;
     private final String apiKey;
 
-    public SlipOkVerifier(RestTemplate restTemplate,
+    public SlipOkVerifier(@Qualifier("slipRestTemplate") RestTemplate restTemplate,
                           ObjectMapper objectMapper,
                           @Value("${app.slip.slipok.base-url}") String baseUrl,
                           @Value("${app.slip.slipok.branch-id:}") String branchId,
@@ -76,7 +77,7 @@ public class SlipOkVerifier implements SlipVerifier {
         try {
             SlipImage image = SlipImage.download(restTemplate, imageUrl);
             ResponseEntity<String> response = restTemplate.postForEntity(
-                    baseUrl + "/api/line/apikey/" + branchId, requestFor(image, expectedAmount), String.class);
+                    baseUrl + "/api/line/apikey/" + branchId, requestFor(image), String.class);
             return readBody(response.getBody(), expectedAmount);
         } catch (HttpStatusCodeException e) {
             // SlipOK ตอบ 4xx พร้อม body ที่บอกรหัสเหตุผล ซึ่งคือข้อมูลที่เราต้องการ
@@ -87,7 +88,7 @@ public class SlipOkVerifier implements SlipVerifier {
         }
     }
 
-    private HttpEntity<MultiValueMap<String, Object>> requestFor(SlipImage image, BigDecimal expectedAmount) {
+    private HttpEntity<MultiValueMap<String, Object>> requestFor(SlipImage image) {
         ByteArrayResource file = new ByteArrayResource(image.bytes()) {
             @Override
             public String getFilename() {
@@ -98,10 +99,11 @@ public class SlipOkVerifier implements SlipVerifier {
         MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
         body.add("files", file);
         body.add("log", "true");
-        // ต้องตัดศูนย์ท้ายทศนิยมออก — SlipOK เทียบยอดแบบตรงตัว ส่ง "1.00" ไป
-        // ทั้งที่สลิปเป็น 1 จะได้ code 1013 "ยอดไม่ตรง" ทั้งที่สลิปถูกต้อง
-        // (เจอตอนยิงกับสลิปจริง ไม่ใช่สิ่งที่เอกสารเขียนไว้)
-        body.add("amount", expectedAmount.stripTrailingZeros().toPlainString());
+        // ไม่ส่ง amount ให้ SlipOK เทียบ — เอกสารระบุชนิดเป็น number แต่ multipart
+        // ส่งได้แค่ข้อความ ฝั่งเขาเลยเทียบ 1 กับ "1" ไม่ตรงตลอด ได้ code 1013
+        // ทุกครั้งแม้สลิปถูกต้อง (ยืนยันกับสลิปจริงแล้วทั้งผ่าน RestTemplate และ
+        // curl ตรงๆ) เทียบยอดเองใน readBody ด้วย BigDecimal แทน แม่นกว่าและ
+        // ไม่ต้องเดาว่าฝั่งเขาเทียบยังไง
 
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.MULTIPART_FORM_DATA);
@@ -124,9 +126,21 @@ public class SlipOkVerifier implements SlipVerifier {
 
         if (root.path("success").asBoolean(false)) {
             JsonNode data = root.path("data");
+            JsonNode amountNode = data.path("amount");
+            if (!amountNode.isNumber()) {
+                log.warn("SlipOK ยืนยันรายการแล้วแต่ไม่มียอดเงินใน response ส่งต่อให้แอดมินตรวจ");
+                return SlipCheckResult.manualReview("SlipOK ไม่ได้ส่งยอดเงินกลับมา ตรวจยอดด้วยตาอีกครั้ง");
+            }
+            BigDecimal slipAmount = amountNode.decimalValue();
+            if (slipAmount.compareTo(expectedAmount) != 0) {
+                log.info("SlipOK: ยอดไม่ตรง (สลิป {} ต้องได้ {})", slipAmount, expectedAmount);
+                return SlipCheckResult.manualReview(
+                        "ยอดในสลิป (%s บาท) ไม่ตรงกับยอดที่ต้องชำระ (%s บาท)"
+                                .formatted(slipAmount.toPlainString(), expectedAmount.toPlainString()));
+            }
             String sender = data.path("sender").path("displayName").asText("");
             log.info("SlipOK ยืนยันสลิปแล้ว transRef={} ยอด {}",
-                    data.path("transRef").asText("-"), data.path("amount").asText("-"));
+                    data.path("transRef").asText("-"), slipAmount);
             return SlipCheckResult.verified(sender.isBlank()
                     ? "ตรวจสอบกับธนาคารผ่าน SlipOK แล้ว"
                     : "ตรวจสอบกับธนาคารผ่าน SlipOK แล้ว (โอนจาก %s)".formatted(sender));
@@ -141,15 +155,14 @@ public class SlipOkVerifier implements SlipVerifier {
             return SlipCheckResult.notChecked();
         }
 
-        String note = noteFor(code, expectedAmount, message);
+        String note = noteFor(code, message);
         log.info("SlipOK ไม่ยืนยันสลิป (code {}): {}", code, message);
         return SlipCheckResult.manualReview(note);
     }
 
-    private String noteFor(int code, BigDecimal expectedAmount, String message) {
+    private String noteFor(int code, String message) {
         return switch (code) {
             case 1012 -> "SlipOK: สลิปนี้ถูกใช้ยืนยันการชำระเงินไปแล้ว (สลิปซ้ำ)";
-            case 1013 -> "SlipOK: ยอดในสลิปไม่ตรงกับยอดที่ต้องชำระ (%s บาท)".formatted(expectedAmount.toPlainString());
             case 1014 -> "SlipOK: บัญชีผู้รับในสลิปไม่ใช่บัญชีของร้าน";
             case 1011 -> "SlipOK: ไม่พบรายการโอนนี้ในระบบธนาคาร";
             case 1007 -> "SlipOK: ไม่พบ QR code ในรูป อาจไม่ใช่รูปสลิปโอนเงิน";

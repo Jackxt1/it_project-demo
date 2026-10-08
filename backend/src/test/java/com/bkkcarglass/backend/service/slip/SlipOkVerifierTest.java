@@ -75,7 +75,30 @@ class SlipOkVerifierTest {
     }
 
     @Test
-    void sendsTheImageWithTheApiKeyLogFlagAndExpectedAmount() {
+    void amountIsComparedByValue_soTrailingZerosStillMatch() {
+        SlipOkVerifier verifier = configured();
+        // SlipOK ส่งยอดกลับมาเป็น 1 ส่วนใบจองเก็บเป็น 1.00 — ต้องถือว่าตรงกัน
+        slipOkAnswers("""
+                {"success": true, "data": {"success": true, "amount": 1}}""");
+
+        assertTrue(verifier.check(SLIP_URL, new BigDecimal("1.00")).verified());
+    }
+
+    @Test
+    void slipForTheWrongAmount_goesToManualReviewWithBothNumbers() {
+        SlipOkVerifier verifier = configured();
+        slipOkAnswers("""
+                {"success": true, "data": {"success": true, "amount": 1}}""");
+
+        SlipCheckResult result = verifier.check(SLIP_URL, new BigDecimal("6500.00"));
+
+        assertFalse(result.verified());
+        assertTrue(result.note().contains("1"), result.note());
+        assertTrue(result.note().contains("6500.00"), result.note());
+    }
+
+    @Test
+    void sendsTheImageWithTheApiKeyAndLogFlagButNoAmount() {
         SlipOkVerifier verifier = configured();
         slipOkAnswers("""
                 {"success": true, "data": {"success": true, "amount": 500.0}}""");
@@ -96,26 +119,10 @@ class SlipOkVerifierTest {
         assertNotNull(body);
         // log=true คือสิ่งที่เปิดการเช็กสลิปซ้ำและเช็กบัญชีผู้รับ ขาดไปคือตรวจไม่ครบ
         assertEquals("true", body.getFirst("log"));
-        // ยอดที่ส่งไปเทียบต้องเป็นยอดตามใบจอง ไม่ใช่ยอดที่ client ส่งมา และต้อง
-        // ตัดศูนย์ท้ายทศนิยมออก ไม่งั้น SlipOK ตีว่าไม่ตรงทั้งที่สลิปถูก
-        assertEquals("500", body.getFirst("amount"));
         assertNotNull(body.getFirst("files"));
-    }
-
-    @Test
-    void stripsTrailingZerosFromTheAmountSoSlipOkCompareItTheSameWay() {
-        SlipOkVerifier verifier = configured();
-        slipOkAnswers("""
-                {"success": true, "data": {"success": true, "amount": 1}}""");
-
-        verifier.check(SLIP_URL, new BigDecimal("1.00"));
-
-        @SuppressWarnings("unchecked")
-        ArgumentCaptor<HttpEntity<MultiValueMap<String, Object>>> entity =
-                ArgumentCaptor.forClass(HttpEntity.class);
-        verify(restTemplate).postForEntity(anyString(), entity.capture(), eq(String.class));
-
-        assertEquals("1", entity.getValue().getBody().getFirst("amount"));
+        // ห้ามส่ง amount — multipart ส่งเป็นข้อความ แต่ฝั่ง SlipOK เทียบกับ number
+        // แบบ strict เลยไม่ตรงตลอดและตีกลับสลิปที่ถูกต้องเป็น 1013
+        assertNull(body.getFirst("amount"));
     }
 
     @Test
@@ -128,18 +135,6 @@ class SlipOkVerifierTest {
 
         assertFalse(result.verified());
         assertTrue(result.note().contains("สลิปซ้ำ"), result.note());
-    }
-
-    @Test
-    void amountMismatch_putsTheAmountOwedInTheNote() {
-        SlipOkVerifier verifier = configured();
-        slipOkRejects("""
-                {"success": false, "code": 1013, "message": "จำนวนเงินไม่ตรง"}""");
-
-        SlipCheckResult result = verifier.check(SLIP_URL, new BigDecimal("500.00"));
-
-        assertFalse(result.verified());
-        assertTrue(result.note().contains("500.00"), result.note());
     }
 
     @Test
