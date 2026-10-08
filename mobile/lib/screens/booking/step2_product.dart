@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:intl/intl.dart';
 
 import '../../api/api_client.dart';
 import '../../api/catalog_service.dart';
@@ -14,6 +15,11 @@ import '../../widgets/fade_slide_in.dart';
 import '../../widgets/section_number_title.dart';
 
 enum _BookingMode { film, wash, repair }
+
+final NumberFormat _priceFormat = NumberFormat('#,###');
+
+const _pageBackground = Color(0xFFF7F4F4);
+const _hairline = Color(0xFFEDE4E4);
 
 /// Label shown for a film whose `brand` the admin hasn't set yet — groups
 /// those products under one selectable chip instead of hiding them.
@@ -239,10 +245,7 @@ class _Step2ProductState extends State<Step2Product> {
           const _SectionTitle('03 เลือกฟิล์ม'),
           const SizedBox(height: 12),
           _selectedBrand == null
-              ? const Text(
-                  'กรุณาเลือกแบรนด์ก่อน',
-                  style: TextStyle(color: Colors.black54),
-                )
+              ? const _NoticeBox('กรุณาเลือกแบรนด์ก่อน')
               : _buildProductList(showSpecs: true, brand: _selectedBrand),
         ];
       case _BookingMode.wash:
@@ -296,14 +299,11 @@ class _Step2ProductState extends State<Step2Product> {
       return const Center(child: CircularProgressIndicator());
     }
     if (_loadError != null) {
-      return Text(_loadError!, style: const TextStyle(color: Colors.red));
+      return _NoticeBox(_loadError!, isError: true);
     }
     final brands = _availableBrands;
     if (brands.isEmpty) {
-      return const Text(
-        'ยังไม่มีฟิล์มในระบบ',
-        style: TextStyle(color: Colors.black54),
-      );
+      return const _NoticeBox('ยังไม่มีฟิล์มในระบบ');
     }
     return Wrap(
       spacing: 8,
@@ -324,16 +324,13 @@ class _Step2ProductState extends State<Step2Product> {
       return const Center(child: CircularProgressIndicator());
     }
     if (_loadError != null) {
-      return Text(_loadError!, style: const TextStyle(color: Colors.red));
+      return _NoticeBox(_loadError!, isError: true);
     }
     final products = brand == null
         ? _products
         : _products.where((p) => _brandOf(p) == brand).toList();
     if (products.isEmpty) {
-      return const Text(
-        'ไม่พบรายการ',
-        style: TextStyle(color: Colors.black54),
-      );
+      return const _NoticeBox('ไม่พบรายการ');
     }
     return Column(
       children: products
@@ -346,6 +343,7 @@ class _Step2ProductState extends State<Step2Product> {
                 product: entry.value,
                 selected: widget.draft.product?.id == entry.value.id,
                 showSpecs: showSpecs,
+                showBrand: brand == null,
                 onTap: () => _selectProduct(entry.value),
               ),
             ),
@@ -422,25 +420,46 @@ class _Step2ProductState extends State<Step2Product> {
     return TextField(
       controller: _budgetController,
       keyboardType: TextInputType.number,
-      decoration: const InputDecoration(
+      decoration: InputDecoration(
         hintText: 'ระบุงบประมาณโดยประมาณ',
-        border: OutlineInputBorder(),
+        hintStyle: TextStyle(color: Colors.grey.shade500, fontSize: 14),
+        filled: true,
+        fillColor: Colors.white,
         suffixText: 'บาท',
+        suffixStyle: const TextStyle(
+          color: AppColors.primaryDark,
+          fontWeight: FontWeight.w600,
+        ),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: _hairline),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
+        ),
       ),
       onChanged: (_) => setState(() {}),
     );
   }
 
   Widget _buildBottomButton() {
-    return SafeArea(
-      top: false,
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: BouncyButton(
-          child: FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: AppColors.primary),
-            onPressed: _canProceed ? _confirm : null,
-            child: const Text('ไปยังหน้านัดเวลา'),
+    return Container(
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        border: Border(top: BorderSide(color: _hairline)),
+      ),
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+          child: BouncyButton(
+            child: FilledButton(
+              style: FilledButton.styleFrom(backgroundColor: AppColors.primary),
+              onPressed: _canProceed ? _confirm : null,
+              child: const Text('ไปยังหน้านัดเวลา'),
+            ),
           ),
         ),
       ),
@@ -526,12 +545,17 @@ class _ProductCard extends StatelessWidget {
     required this.product,
     required this.selected,
     required this.showSpecs,
+    required this.showBrand,
     required this.onTap,
   });
 
   final Product product;
   final bool selected;
   final bool showSpecs;
+
+  /// ซ่อนแบรนด์เมื่อรายการถูกกรองด้วยชิปแบรนด์อยู่แล้ว — ทุกการ์ดจะเป็น
+  /// แบรนด์เดียวกันหมด เขียนซ้ำทุกใบก็ไม่ได้บอกอะไรเพิ่ม
+  final bool showBrand;
   final VoidCallback onTap;
 
   @override
@@ -548,45 +572,174 @@ class _ProductCard extends StatelessWidget {
         specs.add('ความเข้ม ${product.vltPct}%');
       }
     }
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      elevation: 0,
-      shape: RoundedRectangleBorder(
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Material(
+        color: selected ? const Color(0xFFFFF5F5) : Colors.white,
         borderRadius: BorderRadius.circular(16),
-        side: BorderSide(
-          color: selected ? AppColors.primary : Colors.grey.shade300,
-          width: selected ? 1.2 : 1,
-        ),
-      ),
-      child: ListTile(
-        onTap: onTap,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text(
-          product.name,
-          style: const TextStyle(fontWeight: FontWeight.w700),
-        ),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (product.brand != null) Text(product.brand!),
-            if (product.description != null) Text(product.description!),
-            if (specs.isNotEmpty) Text(specs.join(' · ')),
-            Text(
-              '${product.price.toStringAsFixed(0)} บาท',
-              style: const TextStyle(
-                fontWeight: FontWeight.w700,
-                color: AppColors.primaryDark,
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 180),
+            padding: const EdgeInsets.fromLTRB(14, 14, 12, 14),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: selected ? AppColors.primary : _hairline,
+                width: selected ? 1.6 : 1,
               ),
             ),
-          ],
-        ),
-        trailing: BounceOnChange(
-          trigger: selected,
-          child: Icon(
-            selected ? Icons.radio_button_checked : Icons.radio_button_off,
-            color: selected ? AppColors.primary : Colors.grey,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        product.name,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 15,
+                          height: 1.3,
+                          color: Color(0xFF2B2B2B),
+                        ),
+                      ),
+                      if (showBrand && product.brand != null) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          product.brand!,
+                          style: TextStyle(
+                            fontSize: 12.5,
+                            color: Colors.grey.shade600,
+                          ),
+                        ),
+                      ],
+                      if (product.description != null) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          product.description!,
+                          style: TextStyle(
+                            fontSize: 12.5,
+                            height: 1.45,
+                            color: Colors.grey.shade600,
+                          ),
+                        ),
+                      ],
+                      if (specs.isNotEmpty) ...[
+                        const SizedBox(height: 10),
+                        Wrap(
+                          spacing: 6,
+                          runSpacing: 6,
+                          children: specs.map((s) => _SpecPill(s)).toList(),
+                        ),
+                      ],
+                      const SizedBox(height: 10),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.baseline,
+                        textBaseline: TextBaseline.alphabetic,
+                        children: [
+                          Text(
+                            _priceFormat.format(product.price),
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w800,
+                              fontSize: 20,
+                              height: 1,
+                              color: AppColors.primaryDark,
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          const Text(
+                            'บาท',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w600,
+                              fontSize: 12.5,
+                              color: AppColors.primaryDark,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                BounceOnChange(
+                  trigger: selected,
+                  child: Icon(
+                    selected ? Icons.radio_button_checked : Icons.radio_button_off,
+                    color: selected ? AppColors.primary : Colors.grey.shade400,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _SpecPill extends StatelessWidget {
+  const _SpecPill(this.label);
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+      decoration: BoxDecoration(
+        color: _pageBackground,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: _hairline),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(fontSize: 11.5, color: Colors.grey.shade800),
+      ),
+    );
+  }
+}
+
+/// ข้อความแทนรายการที่ยังแสดงไม่ได้ (ยังไม่เลือกแบรนด์ / ไม่มีของ / โหลดพลาด)
+/// ทำเป็นกล่องแทนบรรทัดลอยๆ ให้เห็นว่าตรงนี้คือที่ของรายการ ไม่ใช่หน้าพัง
+class _NoticeBox extends StatelessWidget {
+  const _NoticeBox(this.text, {this.isError = false});
+
+  final String text;
+  final bool isError;
+
+  @override
+  Widget build(BuildContext context) {
+    final tint = isError ? const Color(0xFFD92020) : Colors.grey.shade500;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 18),
+      decoration: BoxDecoration(
+        color: isError ? const Color(0xFFFDE9E9) : _pageBackground,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: isError ? const Color(0xFFF5C9C9) : _hairline),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            isError ? Icons.error_outline : Icons.info_outline,
+            size: 18,
+            color: tint,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              text,
+              style: TextStyle(
+                fontSize: 13.5,
+                color: isError ? const Color(0xFF8F1313) : Colors.grey.shade700,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

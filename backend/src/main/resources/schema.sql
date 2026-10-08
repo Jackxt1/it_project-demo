@@ -316,3 +316,57 @@ CREATE TABLE IF NOT EXISTS otp_requests (
 
 CREATE INDEX IF NOT EXISTS idx_otp_requests_phone_created
     ON otp_requests (phone, created_at DESC)@@
+
+-- ฟิล์มแบรนด์ดังสำหรับเดโม: 3M / V-KOOL / Lamina ให้ชิป "เลือกแบรนด์" ใน
+-- booking step 2 มีมากกว่าแบรนด์เดียว และแชทบอทมีของให้เทียบจริง
+--
+-- ตัวเลขสเปคกับราคาเป็น "ข้อมูลตัวอย่าง" ที่ตั้งให้สมเหตุสมผลตามระดับสินค้า
+-- ไม่ใช่ราคาหรือสเปคที่ประกาศโดยผู้ผลิต ก่อนใช้งานจริงต้องให้ทางร้านใส่ราคา
+-- และค่ากันร้อน/กันยูวี/ความเข้มจากใบสเปคของตัวแทนจำหน่ายแทนทั้งหมด
+INSERT INTO products (service_id, name, brand, grade, price, description,
+                      heat_rejection_pct, uv_rejection_pct, vlt_pct, stock_quantity)
+SELECT s.id, 'Black Chrome 20', '3M', 'พรีเมียม', 12000,
+       'ฟิล์มดำเมทัลไลซ์ ทึบแสงสูง เน้นความเป็นส่วนตัว', 57, 99, 20, 10
+FROM services s
+WHERE s.name = 'ติดฟิล์มกรองแสง'
+  AND NOT EXISTS (SELECT 1 FROM products WHERE name = 'Black Chrome 20')@@
+
+INSERT INTO products (service_id, name, brand, grade, price, description,
+                      heat_rejection_pct, uv_rejection_pct, vlt_pct, stock_quantity)
+SELECT s.id, 'Crystalline 70', '3M', 'ท็อป', 22000,
+       'ฟิล์มเซรามิกใส กันร้อนสูงโดยไม่ทำให้กระจกมืด ไม่กวนสัญญาณ', 60, 99, 70, 6
+FROM services s
+WHERE s.name = 'ติดฟิล์มกรองแสง'
+  AND NOT EXISTS (SELECT 1 FROM products WHERE name = 'Crystalline 70')@@
+
+INSERT INTO products (service_id, name, brand, grade, price, description,
+                      heat_rejection_pct, uv_rejection_pct, vlt_pct, stock_quantity)
+SELECT s.id, 'V-KOOL 40', 'V-KOOL', 'พรีเมียม', 18000,
+       'ฟิล์มสปัตเตอร์ ความเข้มปานกลาง ทัศนวิสัยกลางคืนดี', 57, 99, 40, 8
+FROM services s
+WHERE s.name = 'ติดฟิล์มกรองแสง'
+  AND NOT EXISTS (SELECT 1 FROM products WHERE name = 'V-KOOL 40')@@
+
+INSERT INTO products (service_id, name, brand, grade, price, description,
+                      heat_rejection_pct, uv_rejection_pct, vlt_pct, stock_quantity)
+SELECT s.id, 'V-KOOL 70', 'V-KOOL', 'ท็อป', 25000,
+       'ฟิล์มใสเรือธง กันร้อนสูงแต่แทบไม่ลดแสงสว่าง เหมาะกับกระจกหน้า', 56, 99, 70, 5
+FROM services s
+WHERE s.name = 'ติดฟิล์มกรองแสง'
+  AND NOT EXISTS (SELECT 1 FROM products WHERE name = 'V-KOOL 70')@@
+
+INSERT INTO products (service_id, name, brand, grade, price, description,
+                      heat_rejection_pct, uv_rejection_pct, vlt_pct, stock_quantity)
+SELECT s.id, 'Platinum 40', 'Lamina', 'มาตรฐาน', 11000,
+       'ฟิล์มกันร้อนคุ้มราคา ความเข้มปานกลาง ใช้ได้ทั้งคัน', 55, 99, 40, 12
+FROM services s
+WHERE s.name = 'ติดฟิล์มกรองแสง'
+  AND NOT EXISTS (SELECT 1 FROM products WHERE name = 'Platinum 40')@@
+
+INSERT INTO products (service_id, name, brand, grade, price, description,
+                      heat_rejection_pct, uv_rejection_pct, vlt_pct, stock_quantity)
+SELECT s.id, 'Ceramic 60', 'Lamina', 'พรีเมียม', 16000,
+       'ฟิล์มเซรามิก ไม่กวนสัญญาณ GPS/มือถือ กันร้อนดีในระดับใส', 58, 99, 60, 8
+FROM services s
+WHERE s.name = 'ติดฟิล์มกรองแสง'
+  AND NOT EXISTS (SELECT 1 FROM products WHERE name = 'Ceramic 60')@@

@@ -22,7 +22,7 @@ const List<String> _stepTitles = [
   'สำเร็จ',
 ];
 
-/// Full-screen booking flow: header (back button, "BKK CAR GLASS & FLIM",
+/// Full-screen booking flow: header (back button, "BKK CAR GLASS & FILM",
 /// step name, "N / 5" badge, 5-segment progress bar) over a 5-step body.
 ///
 /// When [initialService] is null (generic entry via "จองบริการ", the center
@@ -322,7 +322,7 @@ class _BookingHeader extends StatelessWidget {
               const SizedBox(width: 10),
               const Expanded(
                 child: Text(
-                  'BKK CAR GLASS & FLIM',
+                  'BKK CAR GLASS & FILM',
                   style: TextStyle(
                     color: AppColors.primaryDark,
                     fontWeight: FontWeight.w800,
