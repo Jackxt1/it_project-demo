@@ -74,6 +74,21 @@ export default function PaymentSlipReview() {
                   ส่งเมื่อ {new Date(booking.slipSubmittedAt).toLocaleString('th-TH')}
                 </div>
               )}
+              {/* เหตุผลที่ตัวตรวจอัตโนมัติไม่ยืนยันสลิปใบนี้ เช่น "สลิปซ้ำ" หรือ
+                  "บัญชีผู้รับไม่ใช่ของร้าน" — ต้องเห็นก่อนกด ไม่ใช่เพ่งรูปเอง */}
+              {booking.slipReviewNote && (
+                <div className="mb-3 flex gap-2 rounded-lg bg-amber-50 p-3 text-xs text-amber-900">
+                  <svg
+                    viewBox="0 0 20 20"
+                    fill="currentColor"
+                    aria-hidden="true"
+                    className="mt-0.5 h-4 w-4 shrink-0 text-amber-500"
+                  >
+                    <path d="M10 2a8 8 0 1 0 0 16 8 8 0 0 0 0-16Zm0 3.5a.9.9 0 0 1 .9.9v4.2a.9.9 0 0 1-1.8 0V6.4a.9.9 0 0 1 .9-.9Zm0 7.3a1 1 0 1 1 0 2 1 1 0 0 1 0-2Z" />
+                  </svg>
+                  <span>{booking.slipReviewNote}</span>
+                </div>
+              )}
               {rejectingId === booking.id ? (
                 <div className="space-y-2">
                   <textarea
@@ -112,7 +127,11 @@ export default function PaymentSlipReview() {
                     อนุมัติ
                   </button>
                   <button
-                    onClick={() => setRejectingId(booking.id)}
+                    onClick={() => {
+                      setRejectingId(booking.id);
+                      // เหตุผลที่ระบบตรวจได้ใช้เป็นร่างให้เลย แอดมินแก้ทับได้
+                      setRejectNote(booking.slipReviewNote ?? '');
+                    }}
                     disabled={submittingId === booking.id}
                     className="rounded border border-red-300 px-3 py-1.5 text-sm text-red-600 hover:bg-red-50 disabled:opacity-50"
                   >
