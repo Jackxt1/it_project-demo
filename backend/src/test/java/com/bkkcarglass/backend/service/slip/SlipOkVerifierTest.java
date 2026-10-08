@@ -96,9 +96,26 @@ class SlipOkVerifierTest {
         assertNotNull(body);
         // log=true คือสิ่งที่เปิดการเช็กสลิปซ้ำและเช็กบัญชีผู้รับ ขาดไปคือตรวจไม่ครบ
         assertEquals("true", body.getFirst("log"));
-        // ยอดที่ส่งไปเทียบต้องเป็นยอดตามใบจอง ไม่ใช่ยอดที่ client ส่งมา
-        assertEquals("500.00", body.getFirst("amount"));
+        // ยอดที่ส่งไปเทียบต้องเป็นยอดตามใบจอง ไม่ใช่ยอดที่ client ส่งมา และต้อง
+        // ตัดศูนย์ท้ายทศนิยมออก ไม่งั้น SlipOK ตีว่าไม่ตรงทั้งที่สลิปถูก
+        assertEquals("500", body.getFirst("amount"));
         assertNotNull(body.getFirst("files"));
+    }
+
+    @Test
+    void stripsTrailingZerosFromTheAmountSoSlipOkCompareItTheSameWay() {
+        SlipOkVerifier verifier = configured();
+        slipOkAnswers("""
+                {"success": true, "data": {"success": true, "amount": 1}}""");
+
+        verifier.check(SLIP_URL, new BigDecimal("1.00"));
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<HttpEntity<MultiValueMap<String, Object>>> entity =
+                ArgumentCaptor.forClass(HttpEntity.class);
+        verify(restTemplate).postForEntity(anyString(), entity.capture(), eq(String.class));
+
+        assertEquals("1", entity.getValue().getBody().getFirst("amount"));
     }
 
     @Test

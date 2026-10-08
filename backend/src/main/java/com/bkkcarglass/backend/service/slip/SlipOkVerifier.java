@@ -98,7 +98,10 @@ public class SlipOkVerifier implements SlipVerifier {
         MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
         body.add("files", file);
         body.add("log", "true");
-        body.add("amount", expectedAmount.toPlainString());
+        // ต้องตัดศูนย์ท้ายทศนิยมออก — SlipOK เทียบยอดแบบตรงตัว ส่ง "1.00" ไป
+        // ทั้งที่สลิปเป็น 1 จะได้ code 1013 "ยอดไม่ตรง" ทั้งที่สลิปถูกต้อง
+        // (เจอตอนยิงกับสลิปจริง ไม่ใช่สิ่งที่เอกสารเขียนไว้)
+        body.add("amount", expectedAmount.stripTrailingZeros().toPlainString());
 
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.MULTIPART_FORM_DATA);
