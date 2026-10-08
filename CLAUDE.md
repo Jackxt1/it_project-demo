@@ -151,6 +151,36 @@ and TECHNICIAN users, built entirely against the Phase 3 backend (`main`, commit
   rule is reserved for it) — new OWNER/ADMIN users must be created directly in the database
   for now.
 
+## ตรวจสลิปโอนเงินอัตโนมัติ
+
+`SlipVerifier` (`backend/.../service/slip/`) เป็น interface ตัวเดียว เลือก implementation
+ด้วย `SLIP_VERIFIER` แบบเดียวกับ `OtpSender` — เปลี่ยนเจ้าผู้ให้บริการ = เพิ่มคลาสเดียว
+
+- `GeminiSlipVerifier` (default) — ให้ Gemini vision อ่านยอดเงินจากรูปสลิปแล้วเทียบกับ
+  `booking.paidAmount` ใช้ `GEMINI_API_KEY` ตัวเดียวกับแชทบอท ไม่ต้องสมัครอะไรเพิ่ม
+  **แต่เป็นแค่การอ่านรูป ไม่ได้ยืนยันกับธนาคาร** สลิปปลอมที่ทำยอดให้ตรงก็ผ่าน
+  และตรวจสลิปซ้ำไม่ได้เลย
+- `SlipOkVerifier` — POST รูปสลิปไป `https://api.slipok.com/api/line/apikey/{branchId}`
+  (header `x-authorization`, multipart `files` + `log=true` + `amount`) SlipOK อ่าน QR
+  ในสลิปแล้วถามธนาคารว่ารายการมีจริงไหม `log=true` เปิดการเช็กสลิปซ้ำและเทียบบัญชี
+  ผู้รับกับบัญชีที่ร้านลงทะเบียนไว้ จบในการเรียกครั้งเดียว
+
+ส่งรูปเป็น multipart ไม่ใช่ `url` เพราะตอน dev สลิปถูกเก็บลงดิสก์แล้วเสิร์ฟจาก
+localhost ซึ่ง server ของ SlipOK เข้าไม่ถึง
+
+**ไม่มีทาง "ปฏิเสธอัตโนมัติ"** โดยเจตนา — `reviewPaymentSlip` รับงานเฉพาะตอนสถานะ
+`PENDING_REVIEW` ถ้าระบบปฏิเสธเองไปแล้วแอดมินจะย้อนกลับมาแก้ไม่ได้ ลูกค้าที่โอนจริง
+แต่โดนอ่านผิดก็ตายฟรี เพราะงั้นผลมีแค่ผ่าน (อนุมัติเลย) หรือเข้าคิวรอแอดมินกด
+พร้อมเหตุผลติดไปใน `slipReviewNote` ให้คนตัดสิน
+
+แยกเหตุผลสองชั้น: ปัญหาที่ตัวสลิป (ซ้ำ 1012 / ยอดไม่ตรง 1013 / บัญชีผู้รับผิด 1014 /
+ไม่พบรายการ 1011 / ไม่มี QR 1007) เขียนโน้ตให้แอดมินและลูกค้าเห็น ส่วนปัญหาของร้านเอง
+(branch ผิด 1001 / key ผิด 1002 / แพ็กเกจหมดอายุ 1003 / โควต้าหมด 1004) ลง log
+อย่างเดียว ไม่ไปขึ้นหน้าลูกค้าว่าร้านโควต้าหมด
+
+ข้อจำกัดของ SlipOK ที่ต้องรู้: โควต้าฟรี 100 สลิป/เดือน และ error 1014 หมายความว่า
+**ต้องลงทะเบียนบัญชีธนาคารของร้านใน dashboard** ไม่งั้นสลิปที่โอนเข้าบัญชีอื่นจะไม่ผ่าน
+
 ## Environment Variables (ต้องใส่ค่าจริงก่อน deploy)
 - `DB_URL`, `DB_USERNAME`, `DB_PASSWORD` — PostgreSQL connection จริง
 - `JWT_SECRET` — ต้องเปลี่ยนจาก placeholder ห้ามใช้ตอน production
@@ -162,5 +192,8 @@ and TECHNICIAN users, built entirely against the Phase 3 backend (`main`, commit
 - `OTP_SENDER` — ช่องทางส่ง OTP (default `log` = เขียนรหัสลง log ไม่ส่ง SMS จริง) ถ้าตั้งค่าที่ยังไม่มีคลาสรองรับ แอปจะบูตไม่ขึ้น ซึ่งตั้งใจให้เป็นแบบนั้น
 - `OTP_EXPOSE_CODE` — **ต้องตั้งเป็น `false` ก่อน deploy** ถ้าเปิดไว้ response ของ `/api/auth/otp/request` จะมีรหัสติดมาด้วย ใครรู้เบอร์ก็ล็อกอินเป็นคนนั้นได้
 - `OTP_TTL_SECONDS`, `OTP_RESEND_COOLDOWN_SECONDS`, `OTP_MAX_PER_HOUR`, `OTP_MAX_ATTEMPTS` — ปรับ rate limit ของ OTP (default 300 วิ / 60 วิ / 5 ครั้งต่อชม. / 5 ครั้งต่อรหัส)
+- `SLIP_VERIFIER` — ตัวตรวจสลิปโอนเงิน (default `gemini` = ให้ AI อ่านยอดจากรูป ใช้ `GEMINI_API_KEY` ตัวเดิม / `slipok` = ยิง QR ไปถามธนาคารผ่าน SlipOK) ตั้งค่าที่ยังไม่มีคลาสรองรับ แอปจะบูตไม่ขึ้น เหมือน `OTP_SENDER`
+- `SLIPOK_BRANCH_ID`, `SLIPOK_API_KEY` — จากหน้า API ใน dashboard ของ SlipOK จำเป็นเมื่อ `SLIP_VERIFIER=slipok` ถ้าเว้นว่างจะไม่ตรวจอัตโนมัติเลย (เข้าคิวรอแอดมินกดแทน) **ห้าม commit ค่าจริง** รีโปเป็น public — ใส่ใน `backend/.env` ที่ถูก gitignore ไว้แล้ว
+- `SLIPOK_BASE_URL` — ปรับได้เผื่อ SlipOK ย้าย host (default `https://api.slipok.com`)
 - `CORS_ALLOWED_ORIGINS` — โดเมนจริงของ web admin ตอน deploy (comma-separated)
 - `SERVER_PORT` — ปรับได้ตาม hosting (default 8080)

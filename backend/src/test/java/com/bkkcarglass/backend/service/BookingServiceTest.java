@@ -32,6 +32,8 @@ import com.bkkcarglass.backend.repository.ServiceRepository;
 import com.bkkcarglass.backend.repository.TechnicianRepository;
 import com.bkkcarglass.backend.repository.VehicleRepository;
 import com.bkkcarglass.backend.security.CurrentUserService;
+import com.bkkcarglass.backend.service.slip.SlipCheckResult;
+import com.bkkcarglass.backend.service.slip.SlipVerifier;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -64,7 +66,7 @@ class BookingServiceTest {
     @Mock CurrentUserService currentUserService;
     @Mock NotificationService notificationService;
     @Mock org.springframework.messaging.simp.SimpMessagingTemplate messagingTemplate;
-    @Mock SlipVerificationService slipVerificationService;
+    @Mock SlipVerifier slipVerifier;
 
     BookingService bookingService;
 
@@ -77,11 +79,12 @@ class BookingServiceTest {
                 bookingRepository, historyRepository, serviceRepository,
                 productRepository, technicianRepository, vehicleRepository,
                 currentUserService, notificationService, messagingTemplate,
-                slipVerificationService);
+                slipVerifier);
 
         customer = User.builder().id(1L).fullName("ลูกค้า ทดสอบ").build();
         washService = ServiceEntity.builder().id(10L).name("ล้างรถ").maxPerSlot(5).build();
 
+        lenient().when(slipVerifier.check(anyString(), any())).thenReturn(SlipCheckResult.notChecked());
         lenient().when(currentUserService.getCurrentUser()).thenReturn(customer);
         lenient().when(serviceRepository.findById(10L)).thenReturn(Optional.of(washService));
         lenient().when(bookingRepository.save(any(Booking.class)))
@@ -430,7 +433,32 @@ class BookingServiceTest {
     }
 
     @Test
-    void submitPaymentSlip_amountMatchesGeminiReading_autoVerifiesAndNotifiesTheCustomer() {
+    void submitPaymentSlip_verifierRejects_queuesForAdminWithTheReasonAttached() {
+        Booking booking = Booking.builder()
+                .id(63L).user(customer).service(washService)
+                .bookingDate(LocalDate.now().plusDays(1)).timeSlot("09:00")
+                .status(BookingStatus.PENDING)
+                .paymentStatus(PaymentStatus.AWAITING_PAYMENT)
+                .paidAmount(new BigDecimal("500.00"))
+                .build();
+        when(bookingRepository.findById(63L)).thenReturn(Optional.of(booking));
+        when(slipVerifier.check("https://example.com/slip.jpg", new BigDecimal("500.00")))
+                .thenReturn(SlipCheckResult.manualReview("SlipOK: สลิปนี้ถูกใช้ยืนยันการชำระเงินไปแล้ว (สลิปซ้ำ)"));
+
+        PaymentSlipRequest request = new PaymentSlipRequest();
+        request.setImageUrl("https://example.com/slip.jpg");
+        request.setAmount(new BigDecimal("500.00"));
+
+        BookingResponse response = bookingService.submitPaymentSlip(63L, request);
+
+        // ไม่ปฏิเสธเอง แต่บอกแอดมินว่าเพราะอะไร
+        assertEquals(PaymentStatus.PENDING_REVIEW.name(), response.getPaymentStatus());
+        assertEquals("SlipOK: สลิปนี้ถูกใช้ยืนยันการชำระเงินไปแล้ว (สลิปซ้ำ)", response.getSlipReviewNote());
+        assertNull(response.getSlipReviewedAt());
+    }
+
+    @Test
+    void submitPaymentSlip_verifierPasses_autoVerifiesAndNotifiesTheCustomer() {
         Booking booking = Booking.builder()
                 .id(62L).user(customer).service(washService)
                 .bookingDate(LocalDate.now().plusDays(1)).timeSlot("09:00")
@@ -439,8 +467,8 @@ class BookingServiceTest {
                 .paidAmount(new BigDecimal("500.00"))
                 .build();
         when(bookingRepository.findById(62L)).thenReturn(Optional.of(booking));
-        when(slipVerificationService.verifyAmount("https://example.com/slip.jpg", new BigDecimal("500.00")))
-                .thenReturn(true);
+        when(slipVerifier.check("https://example.com/slip.jpg", new BigDecimal("500.00")))
+                .thenReturn(SlipCheckResult.verified("ตรวจสอบกับธนาคารผ่าน SlipOK แล้ว"));
 
         PaymentSlipRequest request = new PaymentSlipRequest();
         request.setImageUrl("https://example.com/slip.jpg");

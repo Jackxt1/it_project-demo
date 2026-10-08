@@ -36,6 +36,8 @@ import com.bkkcarglass.backend.repository.ServiceRepository;
 import com.bkkcarglass.backend.repository.TechnicianRepository;
 import com.bkkcarglass.backend.repository.VehicleRepository;
 import com.bkkcarglass.backend.security.CurrentUserService;
+import com.bkkcarglass.backend.service.slip.SlipCheckResult;
+import com.bkkcarglass.backend.service.slip.SlipVerifier;
 import lombok.RequiredArgsConstructor;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
@@ -60,7 +62,7 @@ public class BookingService {
     private final CurrentUserService currentUserService;
     private final NotificationService notificationService;
     private final SimpMessagingTemplate messagingTemplate;
-    private final SlipVerificationService slipVerificationService;
+    private final SlipVerifier slipVerifier;
 
     private final java.security.SecureRandom random = new java.security.SecureRandom();
 
@@ -364,16 +366,20 @@ public class BookingService {
         // Trust the booking's own paidAmount (set at booking time), not the
         // client-supplied request.getAmount() — a client shouldn't be able
         // to influence what amount gets checked against the slip.
-        boolean autoVerified = slipVerificationService.verifyAmount(request.getImageUrl(), booking.getPaidAmount());
+        SlipCheckResult check = slipVerifier.check(request.getImageUrl(), booking.getPaidAmount());
+        boolean autoVerified = check.verified();
         if (autoVerified) {
             booking.setPaymentStatus(PaymentStatus.VERIFIED);
             booking.setSlipReviewedAt(LocalDateTime.now());
-            booking.setSlipReviewNote("ตรวจสอบอัตโนมัติโดยระบบ");
         } else {
-            // No automatic match (or verification isn't configured) — queue
-            // for manual admin review same as before.
+            // ไม่ผ่านอัตโนมัติ (หรือยังไม่ได้ตั้งค่าตัวตรวจ) — เข้าคิวรอแอดมินกด
+            // เหมือนเดิม ระบบไม่ปฏิเสธเองเพราะ reviewPaymentSlip รับเฉพาะสถานะ
+            // PENDING_REVIEW ถ้าปฏิเสธไปแล้วแอดมินย้อนกลับมาแก้ไม่ได้
             booking.setPaymentStatus(PaymentStatus.PENDING_REVIEW);
         }
+        // เหตุผลจากตัวตรวจ (เช่น "สลิปซ้ำ") ติดไปกับใบจองเสมอ ให้แอดมินเห็นว่า
+        // ทำไมไม่ผ่าน ไม่ต้องเพ่งรูปเอง
+        booking.setSlipReviewNote(check.note());
         booking = bookingRepository.save(booking);
 
         if (autoVerified) {

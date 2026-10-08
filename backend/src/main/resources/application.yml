@@ -53,6 +53,19 @@ app:
     # QR code. Leave empty to disable QR payment (shows a "not configured"
     # message instead of a broken QR).
     promptpay-id: ${PROMPTPAY_ID:0642200042}
+  slip:
+    # ตัวตรวจสลิปโอนเงินอัตโนมัติ มีสองแบบ
+    #   gemini — ให้ AI อ่านยอดเงินจากรูป ใช้ GEMINI_API_KEY ตัวเดียวกับแชทบอท
+    #            ไม่ต้องสมัครอะไรเพิ่ม แต่ "แค่อ่านรูป" สลิปปลอมที่ยอดตรงก็ผ่าน
+    #   slipok — ยิง QR ในสลิปไปถามธนาคารผ่าน SlipOK ว่ารายการมีจริงไหม
+    #            จับสลิปปลอม/สลิปซ้ำ/บัญชีผู้รับผิดได้ ต้องมี branch-id + api-key
+    # ตั้งค่าที่ยังไม่มีคลาสรองรับ แอปจะบูตไม่ขึ้น (เหมือน app.otp.sender)
+    verifier: ${SLIP_VERIFIER:gemini}
+    slipok:
+      base-url: ${SLIPOK_BASE_URL:https://api.slipok.com}
+      # เอาจาก dashboard ของ SlipOK — ห้าม commit ค่าจริง รีโปนี้เป็น public
+      branch-id: ${SLIPOK_BRANCH_ID:}
+      api-key: ${SLIPOK_API_KEY:}
   otp:
     length: ${OTP_LENGTH:6}
     ttl-seconds: ${OTP_TTL_SECONDS:300}
