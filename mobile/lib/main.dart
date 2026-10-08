@@ -18,6 +18,9 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'BKK Car Glass',
       theme: AppTheme.light,
+      // ริบบิ้น DEBUG มุมขวาบนบังเนื้อหาจริงเวลาเดโมและตอนแคปหน้าจอ
+      // (ขึ้นเฉพาะ debug build อยู่แล้ว ไม่ได้ติดไป release)
+      debugShowCheckedModeBanner: false,
       home: const SplashScreen(),
     );
   }

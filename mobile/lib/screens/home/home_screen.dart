@@ -8,6 +8,8 @@ import '../../api/catalog_service.dart';
 import '../../models/product.dart';
 import '../../models/service_item.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/bot_mark.dart';
+import '../../widgets/product_thumbnail.dart';
 import '../chat/chatbot_screen.dart';
 
 const String _comingSoonMessage = 'เร็วๆ นี้';
@@ -281,12 +283,36 @@ class _HomeScreenState extends State<HomeScreen> {
         Positioned(
           right: 16,
           bottom: 16,
-          child: FloatingActionButton(
-            heroTag: 'home_chat_fab',
-            backgroundColor: AppColors.primary,
-            shape: const CircleBorder(),
-            onPressed: _openChatbot,
-            child: const Icon(Icons.chat_bubble_outline, color: Colors.white),
+          // ไล่สีกับเงาให้ปุ่มลอยเด่นขึ้นมาจากพื้นหลัง และใช้เครื่องหมายเดียว
+          // กับรูปโปรไฟล์บอทในหน้าแชท ปุ่มที่กดกับตัวที่คุยด้วยจะได้เป็นสิ่งเดียวกัน
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [AppColors.primary, AppColors.primaryDarker],
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.primary.withValues(alpha: 0.4),
+                  blurRadius: 16,
+                  offset: const Offset(0, 6),
+                ),
+              ],
+            ),
+            child: FloatingActionButton(
+              heroTag: 'home_chat_fab',
+              backgroundColor: Colors.transparent,
+              elevation: 0,
+              focusElevation: 0,
+              hoverElevation: 0,
+              highlightElevation: 0,
+              shape: const CircleBorder(),
+              onPressed: _openChatbot,
+              tooltip: 'ผู้ช่วยแนะนำบริการ',
+              child: const BotMark(size: 25),
+            ),
           ),
         ),
       ],
@@ -637,7 +663,6 @@ class _ProductCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final imageUrl = product.imageUrl;
     return Material(
       color: Colors.white,
       borderRadius: BorderRadius.circular(16),
@@ -653,15 +678,7 @@ class _ProductCard extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Expanded(
-                child: imageUrl != null && imageUrl.isNotEmpty
-                    ? Image.network(
-                        imageUrl,
-                        fit: BoxFit.cover,
-                        width: double.infinity,
-                      )
-                    : Container(color: Colors.grey.shade300),
-              ),
+              Expanded(child: ProductThumbnail(product: product)),
               Padding(
                 padding: const EdgeInsets.all(8),
                 child: Column(

@@ -10,6 +10,7 @@ import '../../models/product.dart';
 import '../../models/product_recommendation.dart';
 import '../../models/service_item.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/bot_mark.dart';
 import '../booking/booking_flow.dart';
 import 'booking_chat_screen.dart';
 
@@ -413,7 +414,7 @@ class _ChatbotScreenState extends State<ChatbotScreen> {
       titleSpacing: 0,
       title: Row(
         children: [
-          const _BotAvatar(size: 38),
+          const BotAvatar(size: 38),
           const SizedBox(width: 10),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -578,30 +579,6 @@ class _ChatbotScreenState extends State<ChatbotScreen> {
           _SendButton(onPressed: _loadingServices ? null : _handleSend),
         ],
       ),
-    );
-  }
-}
-
-/// รูปแทนตัวบอท ใช้ทั้งบน AppBar และหน้าฟองข้อความ
-class _BotAvatar extends StatelessWidget {
-  const _BotAvatar({this.size = 30});
-
-  final double size;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: size,
-      height: size,
-      decoration: const BoxDecoration(
-        shape: BoxShape.circle,
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [AppColors.primary, AppColors.primaryDarker],
-        ),
-      ),
-      child: Icon(Icons.smart_toy_outlined, size: size * 0.55, color: Colors.white),
     );
   }
 }
@@ -789,7 +766,7 @@ class _TextBubble extends StatelessWidget {
             child: showAvatar
                 ? const Align(
                     alignment: Alignment.centerLeft,
-                    child: _BotAvatar(),
+                    child: BotAvatar(),
                   )
                 : null,
           ),
@@ -831,7 +808,7 @@ class _TypingBubbleState extends State<_TypingBubble>
         children: [
           const SizedBox(
             width: 36,
-            child: Align(alignment: Alignment.centerLeft, child: _BotAvatar()),
+            child: Align(alignment: Alignment.centerLeft, child: BotAvatar()),
           ),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
