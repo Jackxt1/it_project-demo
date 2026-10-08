@@ -15,6 +15,9 @@ import 'booking_chat_screen.dart';
 
 final NumberFormat _priceFormat = NumberFormat('#,###');
 
+const _chatBackground = Color(0xFFF7F4F4);
+const _bubbleBorder = Color(0xFFEDE4E4);
+
 enum _BotState { awaitingService, awaitingArea, awaitingBudget, done }
 
 /// One entry in the chat transcript — either a plain text bubble (bot or
@@ -380,30 +383,19 @@ class _ChatbotScreenState extends State<ChatbotScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('แชทบอทแนะนำบริการ')),
+      backgroundColor: _chatBackground,
+      appBar: _buildAppBar(),
       body: SafeArea(
         child: Column(
           children: [
             Expanded(
               child: ListView.builder(
                 controller: _scrollController,
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
                 itemCount: _entries.length + (_requestingRecommend ? 1 : 0),
                 itemBuilder: (context, index) {
-                  if (index >= _entries.length) {
-                    return const Align(
-                      alignment: Alignment.centerLeft,
-                      child: Padding(
-                        padding: EdgeInsets.symmetric(vertical: 8),
-                        child: SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        ),
-                      ),
-                    );
-                  }
-                  return _buildEntry(_entries[index]);
+                  if (index >= _entries.length) return const _TypingBubble();
+                  return _buildEntry(_entries[index], index);
                 },
               ),
             ),
@@ -414,51 +406,97 @@ class _ChatbotScreenState extends State<ChatbotScreen> {
     );
   }
 
-  Widget _buildEntry(_ChatEntry entry) {
+  PreferredSizeWidget _buildAppBar() {
+    return AppBar(
+      backgroundColor: Colors.white,
+      surfaceTintColor: Colors.white,
+      titleSpacing: 0,
+      title: Row(
+        children: [
+          const _BotAvatar(size: 38),
+          const SizedBox(width: 10),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'แชทบอทแนะนำบริการ',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(height: 2),
+              Row(
+                children: [
+                  Container(
+                    width: 6,
+                    height: 6,
+                    decoration: const BoxDecoration(
+                      color: Color(0xFF22C55E),
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  const SizedBox(width: 5),
+                  Text(
+                    'พร้อมแนะนำสินค้าให้คุณ',
+                    style: TextStyle(fontSize: 11.5, color: Colors.grey.shade600),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ],
+      ),
+      bottom: PreferredSize(
+        preferredSize: const Size.fromHeight(1),
+        child: Container(height: 1, color: _bubbleBorder),
+      ),
+    );
+  }
+
+  /// บอทเริ่มพูดต่อกันหลายฟองได้ แสดงรูปโปรไฟล์เฉพาะฟองแรกของชุด
+  /// ที่เหลือเว้นที่ไว้เท่ากัน จะได้เรียงตรงกันโดยไม่รกตา
+  bool _showsAvatar(int index) {
+    if (index == 0) return true;
+    return _entries[index - 1].kind != _EntryKind.bot;
+  }
+
+  Widget _buildEntry(_ChatEntry entry, int index) {
     switch (entry.kind) {
       case _EntryKind.bot:
-        return _TextBubble(text: entry.text!, fromUser: false);
+        return _TextBubble(
+          text: entry.text!,
+          fromUser: false,
+          showAvatar: _showsAvatar(index),
+        );
       case _EntryKind.user:
-        return _TextBubble(text: entry.text!, fromUser: true);
+        return _TextBubble(text: entry.text!, fromUser: true, showAvatar: false);
       case _EntryKind.serviceChips:
-        return Align(
-          alignment: Alignment.centerLeft,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 4),
-            child: Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: entry.services!
-                  .map(
-                    (service) => ActionChip(
-                      label: Text(service.name),
-                      backgroundColor: AppColors.surfaceLight,
-                      onPressed: () => _onChipTap(service),
-                    ),
-                  )
-                  .toList(),
-            ),
-          ),
+        return _ChipRow(
+          // ชิปที่เลยขั้นตอนไปแล้วกดไม่ได้ ทำให้ดูจางลงด้วย ไม่งั้นกดแล้ว
+          // เงียบหายเหมือนแอปค้าง
+          enabled: _state == _BotState.awaitingService,
+          children: entry.services!
+              .map(
+                (service) => _SuggestionChip(
+                  label: service.name,
+                  icon: _serviceIcon(service.name),
+                  enabled: _state == _BotState.awaitingService,
+                  onTap: () => _onChipTap(service),
+                ),
+              )
+              .toList(),
         );
       case _EntryKind.areaChips:
-        return Align(
-          alignment: Alignment.centerLeft,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 4),
-            child: Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: installAreaOptions
-                  .map(
-                    (option) => ActionChip(
-                      label: Text(option.label),
-                      backgroundColor: AppColors.surfaceLight,
-                      onPressed: () => _onAreaChipTap(option),
-                    ),
-                  )
-                  .toList(),
-            ),
-          ),
+        return _ChipRow(
+          enabled: _state == _BotState.awaitingArea,
+          children: installAreaOptions
+              .map(
+                (option) => _SuggestionChip(
+                  label: option.label,
+                  enabled: _state == _BotState.awaitingArea,
+                  onTap: () => _onAreaChipTap(option),
+                ),
+              )
+              .toList(),
         );
       case _EntryKind.productCard:
         return _ProductRecommendationCard(
@@ -468,23 +506,41 @@ class _ChatbotScreenState extends State<ChatbotScreen> {
         );
       case _EntryKind.contactButton:
         return Padding(
-          padding: const EdgeInsets.symmetric(vertical: 8),
-          child: OutlinedButton.icon(
-            onPressed: _contactStaff,
-            icon: const Icon(Icons.support_agent_outlined),
-            label: const Text('คุยกับเจ้าหน้าที่'),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: AppColors.primaryDark,
-              side: const BorderSide(color: AppColors.primary),
+          padding: const EdgeInsets.fromLTRB(44, 10, 0, 8),
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: OutlinedButton.icon(
+              onPressed: _contactStaff,
+              icon: const Icon(Icons.support_agent_outlined, size: 19),
+              label: const Text('คุยกับเจ้าหน้าที่'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.primaryDark,
+                backgroundColor: Colors.white,
+                side: const BorderSide(color: AppColors.primary),
+                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+                textStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+                shape: const StadiumBorder(),
+              ),
             ),
           ),
         );
     }
   }
 
+  static IconData _serviceIcon(String name) {
+    if (name.contains('ฟิล์ม')) return Icons.wb_sunny_outlined;
+    if (name.contains('ล้าง')) return Icons.local_car_wash_outlined;
+    if (name.contains('กระจก') || name.contains('ร้าว')) return Icons.handyman_outlined;
+    return Icons.directions_car_outlined;
+  }
+
   Widget _buildInputBar() {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+    return Container(
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        border: Border(top: BorderSide(color: _bubbleBorder)),
+      ),
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
       child: Row(
         children: [
           Expanded(
@@ -494,61 +550,328 @@ class _ChatbotScreenState extends State<ChatbotScreen> {
                   ? const TextInputType.numberWithOptions(decimal: true)
                   : TextInputType.text,
               decoration: InputDecoration(
-                hintText: 'พิมพ์ข้อความที่นี่',
+                hintText: _state == _BotState.awaitingBudget
+                    ? 'ระบุงบประมาณ เช่น 5000'
+                    : 'พิมพ์ข้อความที่นี่',
+                hintStyle: TextStyle(color: Colors.grey.shade500, fontSize: 14),
                 filled: true,
-                fillColor: AppColors.surfaceLight,
+                fillColor: _chatBackground,
+                isDense: true,
                 contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 10,
+                  horizontal: 18,
+                  vertical: 14,
                 ),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(24),
-                  borderSide: BorderSide.none,
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(26),
+                  borderSide: const BorderSide(color: _bubbleBorder),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(26),
+                  borderSide: const BorderSide(color: AppColors.primary, width: 1.4),
                 ),
               ),
               textInputAction: TextInputAction.send,
               onSubmitted: (_) => _handleSend(),
             ),
           ),
-          const SizedBox(width: 8),
-          IconButton(
-            onPressed: _loadingServices ? null : _handleSend,
-            style: IconButton.styleFrom(
-              backgroundColor: AppColors.primary,
-              foregroundColor: Colors.white,
-            ),
-            icon: const Icon(Icons.send),
-          ),
+          const SizedBox(width: 10),
+          _SendButton(onPressed: _loadingServices ? null : _handleSend),
         ],
       ),
     );
   }
 }
 
-class _TextBubble extends StatelessWidget {
-  const _TextBubble({required this.text, required this.fromUser});
+/// รูปแทนตัวบอท ใช้ทั้งบน AppBar และหน้าฟองข้อความ
+class _BotAvatar extends StatelessWidget {
+  const _BotAvatar({this.size = 30});
 
-  final String text;
-  final bool fromUser;
+  final double size;
 
   @override
   Widget build(BuildContext context) {
-    return Align(
-      alignment: fromUser ? Alignment.centerRight : Alignment.centerLeft,
-      child: Container(
-        margin: const EdgeInsets.symmetric(vertical: 4),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-        constraints: BoxConstraints(
-          maxWidth: MediaQuery.of(context).size.width * 0.75,
+    return Container(
+      width: size,
+      height: size,
+      decoration: const BoxDecoration(
+        shape: BoxShape.circle,
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [AppColors.primary, AppColors.primaryDarker],
         ),
-        decoration: BoxDecoration(
-          color: fromUser ? AppColors.primary : Colors.grey.shade200,
-          borderRadius: BorderRadius.circular(16),
+      ),
+      child: Icon(Icons.smart_toy_outlined, size: size * 0.55, color: Colors.white),
+    );
+  }
+}
+
+class _SendButton extends StatelessWidget {
+  const _SendButton({required this.onPressed});
+
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final enabled = onPressed != null;
+    return Container(
+      width: 48,
+      height: 48,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        gradient: enabled
+            ? const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [AppColors.primary, AppColors.primaryDark],
+              )
+            : null,
+        color: enabled ? null : Colors.grey.shade300,
+        boxShadow: enabled
+            ? [
+                BoxShadow(
+                  color: AppColors.primary.withValues(alpha: 0.32),
+                  blurRadius: 12,
+                  offset: const Offset(0, 4),
+                ),
+              ]
+            : null,
+      ),
+      child: IconButton(
+        onPressed: onPressed,
+        color: Colors.white,
+        disabledColor: Colors.white,
+        icon: const Icon(Icons.send, size: 20),
+      ),
+    );
+  }
+}
+
+class _ChipRow extends StatelessWidget {
+  const _ChipRow({required this.children, required this.enabled});
+
+  final List<Widget> children;
+  final bool enabled;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      // เยื้องให้ตรงกับฟองข้อความของบอทที่มีรูปโปรไฟล์อยู่ข้างหน้า
+      padding: const EdgeInsets.fromLTRB(44, 6, 0, 6),
+      child: AnimatedOpacity(
+        duration: const Duration(milliseconds: 200),
+        opacity: enabled ? 1 : 0.45,
+        child: Align(
+          alignment: Alignment.centerLeft,
+          child: Wrap(spacing: 8, runSpacing: 8, children: children),
         ),
-        child: Text(
-          text,
-          style: TextStyle(color: fromUser ? Colors.white : Colors.black87),
+      ),
+    );
+  }
+}
+
+class _SuggestionChip extends StatelessWidget {
+  const _SuggestionChip({
+    required this.label,
+    required this.enabled,
+    required this.onTap,
+    this.icon,
+  });
+
+  final String label;
+  final IconData? icon;
+  final bool enabled;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.white,
+      shape: StadiumBorder(
+        side: BorderSide(
+          color: enabled ? AppColors.primary.withValues(alpha: 0.45) : _bubbleBorder,
         ),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: enabled ? onTap : null,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (icon != null) ...[
+                Icon(icon, size: 16, color: AppColors.primaryDark),
+                const SizedBox(width: 7),
+              ],
+              Text(
+                label,
+                style: const TextStyle(
+                  color: AppColors.primaryDark,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 13.5,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _TextBubble extends StatelessWidget {
+  const _TextBubble({
+    required this.text,
+    required this.fromUser,
+    required this.showAvatar,
+  });
+
+  final String text;
+  final bool fromUser;
+  final bool showAvatar;
+
+  @override
+  Widget build(BuildContext context) {
+    final bubble = Container(
+      padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 11),
+      constraints: BoxConstraints(
+        maxWidth: MediaQuery.of(context).size.width * 0.72,
+      ),
+      decoration: BoxDecoration(
+        color: fromUser ? null : Colors.white,
+        gradient: fromUser
+            ? const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [AppColors.primary, AppColors.primaryDark],
+              )
+            : null,
+        border: fromUser ? null : Border.all(color: _bubbleBorder),
+        borderRadius: BorderRadius.only(
+          topLeft: const Radius.circular(18),
+          topRight: const Radius.circular(18),
+          bottomLeft: Radius.circular(fromUser ? 18 : 6),
+          bottomRight: Radius.circular(fromUser ? 6 : 18),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: fromUser ? 0.10 : 0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Text(
+        text,
+        style: TextStyle(
+          color: fromUser ? Colors.white : const Color(0xFF2B2B2B),
+          fontSize: 14.5,
+          height: 1.4,
+        ),
+      ),
+    );
+
+    if (fromUser) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: Align(alignment: Alignment.centerRight, child: bubble),
+      );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          SizedBox(
+            width: 36,
+            child: showAvatar
+                ? const Align(
+                    alignment: Alignment.centerLeft,
+                    child: _BotAvatar(),
+                  )
+                : null,
+          ),
+          Flexible(child: bubble),
+        ],
+      ),
+    );
+  }
+}
+
+/// จุดสามจุดกระพริบระหว่างรอคำแนะนำ แทน spinner เปล่าๆ เพื่อให้รู้สึกว่า
+/// "บอทกำลังพิมพ์" เหมือนแชทที่ผู้ใช้คุ้นเคย
+class _TypingBubble extends StatefulWidget {
+  const _TypingBubble();
+
+  @override
+  State<_TypingBubble> createState() => _TypingBubbleState();
+}
+
+class _TypingBubbleState extends State<_TypingBubble>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1100),
+  )..repeat();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          const SizedBox(
+            width: 36,
+            child: Align(alignment: Alignment.centerLeft, child: _BotAvatar()),
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              border: Border.all(color: _bubbleBorder),
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(18),
+                topRight: Radius.circular(18),
+                bottomLeft: Radius.circular(6),
+                bottomRight: Radius.circular(18),
+              ),
+            ),
+            child: AnimatedBuilder(
+              animation: _controller,
+              builder: (context, _) => Row(
+                mainAxisSize: MainAxisSize.min,
+                children: List.generate(3, (i) {
+                  // เลื่อนเฟสของแต่ละจุดให้ไล่กันเป็นคลื่น
+                  final t = (_controller.value - i * 0.18) % 1.0;
+                  final lift = t < 0.5 ? (0.5 - t) * 2 : (t - 0.5) * 2;
+                  return Padding(
+                    padding: EdgeInsets.only(right: i == 2 ? 0 : 6),
+                    child: Opacity(
+                      opacity: 0.35 + 0.65 * lift,
+                      child: Container(
+                        width: 7,
+                        height: 7,
+                        decoration: const BoxDecoration(
+                          color: AppColors.primary,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                    ),
+                  );
+                }),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -567,51 +890,210 @@ class _ProductRecommendationCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Align(
-      alignment: Alignment.centerLeft,
-      child: Container(
-        margin: const EdgeInsets.symmetric(vertical: 6),
-        width: MediaQuery.of(context).size.width * 0.8,
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.grey.shade300),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              recommendation.name,
-              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              '${_priceFormat.format(recommendation.price)} บาท',
-              style: const TextStyle(
-                color: AppColors.primaryDark,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-            if (recommendation.reason != null &&
-                recommendation.reason!.isNotEmpty) ...[
-              const SizedBox(height: 6),
-              Text(
-                recommendation.reason!,
-                style: const TextStyle(fontSize: 13, color: Colors.black54),
+    final subtitle = [recommendation.brand, recommendation.grade]
+        .where((v) => v != null && v.isNotEmpty)
+        .join(' · ');
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(44, 6, 0, 6),
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: Container(
+          width: MediaQuery.of(context).size.width * 0.78,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: _bubbleBorder),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.05),
+                blurRadius: 12,
+                offset: const Offset(0, 3),
               ),
             ],
-            const SizedBox(height: 10),
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton(
-                style: FilledButton.styleFrom(backgroundColor: AppColors.primary),
-                onPressed: onBook,
-                child: const Text('จองตัวนี้'),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+                decoration: const BoxDecoration(
+                  color: AppColors.surfaceLight,
+                  borderRadius: BorderRadius.only(
+                    topLeft: Radius.circular(17),
+                    topRight: Radius.circular(17),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.auto_awesome,
+                        size: 15, color: AppColors.primaryDark),
+                    const SizedBox(width: 6),
+                    Text(
+                      'แนะนำสำหรับคุณ',
+                      style: TextStyle(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.primaryDark.withValues(alpha: 0.9),
+                        letterSpacing: 0.2,
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
-          ],
+              Padding(
+                padding: const EdgeInsets.all(14),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      recommendation.name,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 15.5,
+                        height: 1.3,
+                      ),
+                    ),
+                    if (subtitle.isNotEmpty) ...[
+                      const SizedBox(height: 3),
+                      Text(
+                        subtitle,
+                        style: TextStyle(fontSize: 12.5, color: Colors.grey.shade600),
+                      ),
+                    ],
+                    const SizedBox(height: 10),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.baseline,
+                      textBaseline: TextBaseline.alphabetic,
+                      children: [
+                        Text(
+                          _priceFormat.format(recommendation.price),
+                          style: const TextStyle(
+                            color: AppColors.primaryDark,
+                            fontWeight: FontWeight.w800,
+                            fontSize: 24,
+                            height: 1,
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        const Text(
+                          'บาท',
+                          style: TextStyle(
+                            color: AppColors.primaryDark,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (_specs.isNotEmpty) ...[
+                      const SizedBox(height: 12),
+                      Wrap(spacing: 6, runSpacing: 6, children: _specs),
+                    ],
+                    if (recommendation.reason != null &&
+                        recommendation.reason!.isNotEmpty) ...[
+                      const SizedBox(height: 12),
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFFF8E6),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Icon(Icons.lightbulb_outline,
+                                size: 15, color: Color(0xFFB7791F)),
+                            const SizedBox(width: 7),
+                            Expanded(
+                              child: Text(
+                                recommendation.reason!,
+                                style: const TextStyle(
+                                  fontSize: 12.5,
+                                  height: 1.45,
+                                  color: Color(0xFF7A5A14),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 14),
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton(
+                        style: FilledButton.styleFrom(
+                          backgroundColor: AppColors.primary,
+                          minimumSize: const Size.fromHeight(46),
+                          textStyle: const TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        onPressed: onBook,
+                        child: const Text('จองตัวนี้'),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
+      ),
+    );
+  }
+
+  /// สเปคฟิล์มที่มีค่าเท่านั้น — สินค้าอย่างแพ็กเกจล้างรถไม่มีสเปคพวกนี้
+  /// ถ้าแสดงช่องว่างไว้จะดูเหมือนข้อมูลหาย
+  List<Widget> get _specs => [
+        if (recommendation.heatRejectionPct != null)
+          _SpecPill(
+            icon: Icons.thermostat,
+            label: 'กันร้อน ${recommendation.heatRejectionPct}%',
+          ),
+        if (recommendation.uvRejectionPct != null)
+          _SpecPill(
+            icon: Icons.shield_outlined,
+            label: 'กัน UV ${recommendation.uvRejectionPct}%',
+          ),
+        if (recommendation.vltPct != null)
+          _SpecPill(
+            icon: Icons.opacity,
+            label: 'ความเข้ม ${recommendation.vltPct}%',
+          ),
+      ];
+}
+
+class _SpecPill extends StatelessWidget {
+  const _SpecPill({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+      decoration: BoxDecoration(
+        color: _chatBackground,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 13, color: Colors.grey.shade700),
+          const SizedBox(width: 5),
+          Text(
+            label,
+            style: TextStyle(fontSize: 11.5, color: Colors.grey.shade800),
+          ),
+        ],
       ),
     );
   }
